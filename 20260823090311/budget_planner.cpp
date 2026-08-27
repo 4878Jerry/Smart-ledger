@@ -16,23 +16,24 @@
 //      两种模式下均可拖动滑块 / 微调按钮 / 一键配置调整各分类占比
 //   5. 独立 Win32 演示窗口：切换省份 / 城市等级 / 拖动滑块实时刷新预算
 //
-// 【与主程序（expense_analyzer.cpp）的集成方式】
-//   - 本文件的核心算法是纯函数 computeBudget()，不依赖任何 UI / 全局状态，
-//     可直接并入主程序：
-//       #include "budget_planner.cpp"          // 或只复制 computeBudget + 常量表
-//       ...
-//       double weights[11] = {35, 25, 8, ...};  // 0-100 直接占比，顺序见 kDefaultRatios
-//       // 也可用 defaultRatiosForRegion(城市系数, 省份系数, out) 生成普通人占比模板
-//       BudgetPlan plan = computeBudget(L"month", L"广东", L"一线城市", 8000.0, weights);
-//       // plan.categories[i].amount / ratio 即为各分类预算与占比
-//       // 自定义预算模式：第 6 参传入总预算（>=0 生效，默认 -1 走推荐算法）
-//       BudgetPlan plan2 = computeBudget(L"month", L"广东", L"一线城市", 8000.0, weights, 5000.0);
-//       // plan2.customMode == true，总预算为 5000（超收入时自动按收入上限计算）
-//   - 若只需算法，可忽略本文件末尾 wWinMain 以下的演示窗口部分。
+// 【与主程序（expense_analyzer.cpp）的合并方式】
+//   本文件可独立编译为演示 exe，也可被主程序直接 #include 合并：
+//     - 独立编译（演示）：
+//         cl /DBUDGET_PLANNER_MAIN /EHsc /std:c++17 /O2 budget_planner.cpp ^
+//             /Fe:budget_planner.exe user32.lib gdi32.lib comctl32.lib
+//     - 并入主程序：在 expense_analyzer.cpp 中 #include "budget_planner.cpp"
+//       （此时不定义 BUDGET_PLANNER_MAIN，本文件的 wWinMain 与演示版
+//       OnApplyPlan 自动失效，不产生重复入口）
+//   - 算法核心（computeBudget / defaultRatiosForRegion / 系数表）为纯函数，
+//     放在全局，主程序可直接调用（用于 if 线生成现实规划等）。
+//   - UI 全部位于 namespace budgetui 内，避免与主程序符号冲突。
+//   - 主程序通过 budgetui::ShowBudgetPlanner(owner, initWeights) 打开规划
+//     窗口；点击"应用此方案到主程序"时回调 budgetui::OnApplyPlan()，
+//     该回调由主程序实现（用于把分类月预算写入主程序并做超支预警）。
 //
 // 编译方式（MSVC，x64）：
 //   vcvarsall.bat x64 之后：
-//   cl /EHsc /std:c++17 /O2 budget_planner.cpp /Fe:budget_planner.exe ^
+//   cl /EHsc /std:c++17 /O2 /DBUDGET_PLANNER_MAIN budget_planner.cpp /Fe:budget_planner.exe ^
 //      user32.lib gdi32.lib comctl32.lib
 //
 // 地域购买力系数说明：
@@ -43,6 +44,10 @@
 //     （2023 年前后公开数据常识）综合整理，全国平均 = 1.00，范围约 0.85-1.12，
 //     如需真实数据可替换下方 kProvinceTable 常量表（或改为从配置文件读取）。
 // =====================================================================
+
+#pragma once
+#ifndef SMART_LEDGER_BUDGET_PLANNER_CPP_
+#define SMART_LEDGER_BUDGET_PLANNER_CPP_
 
 #ifndef UNICODE
 #define UNICODE
@@ -56,6 +61,7 @@
 #include <commctrl.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cwchar>
 #include <string>
 #include <vector>
@@ -65,7 +71,9 @@
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "comctl32.lib")
 
-// ===================== 工具函数 =====================
+// ===================== 模块内工具函数（UI 用） =====================
+// 全部放入 namespace budgetui，避免与主程序同名 static 函数冲突
+namespace budgetui {
 
 static std::wstring trim(const std::wstring& s) {
     size_t a = s.find_first_not_of(L" \t\r\n");
@@ -113,6 +121,30 @@ static std::wstring EditText(HWND h) {
     GetWindowTextW(h, buf, 128);
     return std::wstring(buf);
 }
+
+static HWND CreateLabel(HWND parent, const wchar_t* text, int x, int y, int w, int h) {
+    return CreateWindowW(L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
+                         x, y, w, h, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
+}
+
+static HWND CreateGroup(HWND parent, const wchar_t* text, int x, int y, int w, int h) {
+    return CreateWindowW(L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                         x, y, w, h, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
+}
+
+// 分类配色（与主程序 kExpenseColors 同款，0xRRGGBB）
+static DWORD colorForCategory(const std::wstring& cat) {
+    static const struct { const wchar_t* name; DWORD color; } kColors[] = {
+        {L"餐饮", 0xFF7043}, {L"交通", 0x4FC3F7}, {L"购物", 0xEC407A}, {L"娱乐", 0xAB47BC},
+        {L"居住", 0x8D6E63}, {L"医疗", 0xEF5350}, {L"教育", 0x5C6BC0}, {L"通讯", 0x26A69A},
+        {L"社交人情", 0xFFA726}, {L"旅行", 0x42A5F5}, {L"其他", 0x90A4AE},
+    };
+    for (auto& c : kColors)
+        if (cat == c.name) return c.color;
+    return 0x90A4AE;
+}
+
+}  // namespace budgetui
 
 // ===================== 城市等级购买力系数表 =====================
 // 基准：一线城市生活成本 = 1.00；系数越小代表生活成本越低、
@@ -239,18 +271,6 @@ static void defaultRatiosForRegion(double cityFactor, double provinceFactor,
     if (rest > 0)
         for (int i = 0; i < kCategoryCount; ++i)
             if (i != 1) out[i] *= (1.0 - housing) / rest;
-}
-
-// 分类配色（与主程序 kExpenseColors 同款，0xRRGGBB）
-static DWORD colorForCategory(const std::wstring& cat) {
-    static const struct { const wchar_t* name; DWORD color; } kColors[] = {
-        {L"餐饮", 0xFF7043}, {L"交通", 0x4FC3F7}, {L"购物", 0xEC407A}, {L"娱乐", 0xAB47BC},
-        {L"居住", 0x8D6E63}, {L"医疗", 0xEF5350}, {L"教育", 0x5C6BC0}, {L"通讯", 0x26A69A},
-        {L"社交人情", 0xFFA726}, {L"旅行", 0x42A5F5}, {L"其他", 0x90A4AE},
-    };
-    for (auto& c : kColors)
-        if (cat == c.name) return c.color;
-    return 0x90A4AE;
 }
 
 // ===================== 数据模型 =====================
@@ -411,7 +431,9 @@ BudgetPlan computeBudget(const std::wstring& period, const std::wstring& provinc
     return plan;
 }
 
-// ===================== 演示窗口（以下均为 UI，可并入主程序前删除） =====================
+// ===================== 规划窗口 UI（namespace budgetui） =====================
+
+namespace budgetui {
 
 namespace {
 const int ID_PERIOD_MONTH   = 1001;
@@ -428,9 +450,10 @@ const int ID_PCT_BASE       = 1200;  // 第 i 个百分比标签 = 1200 + i
 const int ID_NAME_BASE      = 1300;  // 第 i 个分类名标签 = 1300 + i
 const int ID_DEC_BASE       = 1400;  // 第 i 个占比 "-" 按钮 = 1400 + i
 const int ID_INC_BASE       = 1500;  // 第 i 个占比 "+" 按钮 = 1500 + i
+const int ID_APPLY          = 1600;  // 应用此方案到主程序
 }  // namespace
 
-struct App {
+struct BudgetApp {
     HWND hwnd = nullptr;
     HWND hPeriodMonth, hPeriodYear;
     HWND hProvinceCombo, hCityCombo, hIncome;
@@ -438,12 +461,19 @@ struct App {
     HWND hModeRecommend, hModeCustom;             // 模式切换 radio
     HWND hSliders[kCategoryCount];
     HWND hPctLabels[kCategoryCount];
-    HWND hResult;          // 右侧自绘结果区
+    HWND hApply;          // 应用此方案到主程序
+    HWND hResult;         // 右侧自绘结果区
     bool updating = false; // 防止初始化时 EN_CHANGE 提前刷新
     BudgetPlan plan;
 };
 
-static App g;
+static BudgetApp bg;
+
+static double g_initWeights[kCategoryCount] = {0};  // 由主程序预填的占比（0-100）
+static bool g_hasInitWeights = false;
+static bool g_classRegistered = false;
+
+void OnApplyPlan(const BudgetPlan& plan);  // 由宿主程序（主程序）实现
 
 static void RefreshPlan();
 
@@ -473,10 +503,10 @@ static void DrawResult(HWND hwnd) {
     // 汇总行（20 号字下内容较长，拆为两行显示）
     SelectObject(hdc, bodyFont);
     SetTextColor(hdc, RGB(0x37, 0x47, 0x4F));
-    std::wstring periodStr = (g.plan.period == L"year") ? L"一年" : L"一个月";
-    std::wstring provStr = g.plan.province.empty() ? L"—" : g.plan.province;
-    std::wstring cityStr = g.plan.cityLevel.empty() ? L"—" : g.plan.cityLevel;
-    std::wstring modeStr = g.plan.customMode ? L"自定义" : L"推荐";
+    std::wstring periodStr = (bg.plan.period == L"year") ? L"一年" : L"一个月";
+    std::wstring provStr = bg.plan.province.empty() ? L"—" : bg.plan.province;
+    std::wstring cityStr = bg.plan.cityLevel.empty() ? L"—" : bg.plan.cityLevel;
+    std::wstring modeStr = bg.plan.customMode ? L"自定义" : L"推荐";
     std::wstring sumLine1 = L"模式：" + modeStr + L"　周期：" + periodStr + L"　省份：" + provStr;
     RECT rs1 = {12, 36, rc.right - 12, 62};
     DrawTextW(hdc, sumLine1.c_str(), -1, &rs1, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
@@ -486,24 +516,24 @@ static void DrawResult(HWND hwnd) {
 
     // 汇总行（第 3 行：推荐模式显示系数；自定义模式显示说明）
     std::wstring facLine;
-    if (g.plan.customMode)
+    if (bg.plan.customMode)
         facLine = L"自定义模式：总预算按输入值，地域系数仅供参考";
     else
-        facLine = L"综合地域系数 ×" + fmtMoney(g.plan.regionFactor) +
-            L"（城市等级 ×" + fmtMoney(g.plan.cityFactor) +
-            L" × 省份消费 ×" + fmtMoney(g.plan.provinceFactor) + L"）";
+        facLine = L"综合地域系数 ×" + fmtMoney(bg.plan.regionFactor) +
+            L"（城市等级 ×" + fmtMoney(bg.plan.cityFactor) +
+            L" × 省份消费 ×" + fmtMoney(bg.plan.provinceFactor) + L"）";
     RECT rs2 = {12, 88, rc.right - 12, 114};
     DrawTextW(hdc, facLine.c_str(), -1, &rs2, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
 
     // 总预算大字（左）与储蓄大字（右）：按文字实际宽度分配空间，超宽时自动缩小字号
     SelectObject(hdc, numFont);
-    std::wstring unit = (g.plan.period == L"year") ? L" 元/年（月均 " + fmtMoney(g.plan.budgetPerMonth) + L" 元）" : L" 元/月";
-    std::wstring budgetLine = L"总预算： " + fmtMoney(g.plan.totalBudget) + unit;
+    std::wstring unit = (bg.plan.period == L"year") ? L" 元/年（月均 " + fmtMoney(bg.plan.budgetPerMonth) + L" 元）" : L" 元/月";
+    std::wstring budgetLine = L"总预算： " + fmtMoney(bg.plan.totalBudget) + unit;
 
     // 储蓄大字：收入 - 总预算（与周期一致；年周期同时显示月均储蓄）
-    double saving = g.plan.income - g.plan.totalBudget;
-    double savingPerMonth = (g.plan.period == L"year") ? saving / 12.0 : saving;
-    std::wstring savingUnit = (g.plan.period == L"year")
+    double saving = bg.plan.income - bg.plan.totalBudget;
+    double savingPerMonth = (bg.plan.period == L"year") ? saving / 12.0 : saving;
+    std::wstring savingUnit = (bg.plan.period == L"year")
         ? L" 元/年（月均 " + fmtMoney(savingPerMonth) + L" 元）"
         : L" 元/月";
     std::wstring savingLine = L"储蓄： " + fmtMoney(saving) + savingUnit;
@@ -535,7 +565,7 @@ static void DrawResult(HWND hwnd) {
     // 分类占比条
     SelectObject(hdc, bodyFont);
     int y = 158;
-    for (auto& c : g.plan.categories) {
+    for (auto& c : bg.plan.categories) {
         // 名称
         SetTextColor(hdc, RGB(0x21, 0x21, 0x21));
         RECT rn = {12, y, 92, y + 26};
@@ -571,14 +601,14 @@ static void DrawResult(HWND hwnd) {
     }
 
     // 提醒区
-    if (!g.plan.warnings.empty()) {
+    if (!bg.plan.warnings.empty()) {
         y += 4;
         SelectObject(hdc, bodyFont);
         SetTextColor(hdc, RGB(0xFF, 0xA7, 0x26));
         RECT rw = {12, y, rc.right - 12, y + 26};
         DrawTextW(hdc, L"提醒：", -1, &rw, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
         y += 28;
-        for (auto& w : g.plan.warnings) {
+        for (auto& w : bg.plan.warnings) {
             RECT rline = {12, y, rc.right - 12, y + 26};
             DrawTextW(hdc, w.c_str(), -1, &rline, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
             y += 26;
@@ -594,7 +624,7 @@ static void DrawResult(HWND hwnd) {
 
 // ===================== 结果窗口过程 =====================
 
-LRESULT CALLBACK ResultProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK BudgetResultProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_PAINT:
         DrawResult(hwnd);
@@ -608,49 +638,49 @@ LRESULT CALLBACK ResultProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 // ===================== 刷新方案 =====================
 
 static void RefreshPlan() {
-    bool isYear = (SendMessageW(g.hPeriodYear, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool isYear = (SendMessageW(bg.hPeriodYear, BM_GETCHECK, 0, 0) == BST_CHECKED);
     std::wstring period = isYear ? L"year" : L"month";
 
-    int provIdx = (int)SendMessageW(g.hProvinceCombo, CB_GETCURSEL, 0, 0);
+    int provIdx = (int)SendMessageW(bg.hProvinceCombo, CB_GETCURSEL, 0, 0);
     std::wstring province = (provIdx >= 0 && provIdx < kProvinceCount)
                                 ? kProvinceTable[provIdx].name : L"";
 
-    int cityIdx = (int)SendMessageW(g.hCityCombo, CB_GETCURSEL, 0, 0);
+    int cityIdx = (int)SendMessageW(bg.hCityCombo, CB_GETCURSEL, 0, 0);
     std::wstring cityLevel = (cityIdx >= 0 && cityIdx < kCityCount)
                                  ? kCityTable[cityIdx].level : L"";
 
-    double income = _wtof(trim(EditText(g.hIncome)).c_str());
+    double income = _wtof(trim(EditText(bg.hIncome)).c_str());
 
     // 模式：自定义预算时读总预算输入框（空/无效值由 computeBudget 兜底）
-    bool customMode = (SendMessageW(g.hModeCustom, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool customMode = (SendMessageW(bg.hModeCustom, BM_GETCHECK, 0, 0) == BST_CHECKED);
     double customBudget = -1.0;
     if (customMode)
-        customBudget = _wtof(trim(EditText(g.hBudgetEdit)).c_str());
+        customBudget = _wtof(trim(EditText(bg.hBudgetEdit)).c_str());
 
     double weights[kCategoryCount] = {0};
     for (int i = 0; i < kCategoryCount; ++i)
-        weights[i] = (double)SendMessageW(g.hSliders[i], TBM_GETPOS, 0, 0);
+        weights[i] = (double)SendMessageW(bg.hSliders[i], TBM_GETPOS, 0, 0);
 
-    g.plan = computeBudget(period, province, cityLevel, income, weights, customBudget);
+    bg.plan = computeBudget(period, province, cityLevel, income, weights, customBudget);
 
     // 更新滑块旁的百分比标签
     for (int i = 0; i < kCategoryCount; ++i) {
         wchar_t buf[32];
         swprintf(buf, 32, L"%3.0f", weights[i]);
-        SetWindowTextW(g.hPctLabels[i], buf);
+        SetWindowTextW(bg.hPctLabels[i], buf);
     }
 
     // 结果区重绘
-    InvalidateRect(g.hResult, nullptr, TRUE);
+    InvalidateRect(bg.hResult, nullptr, TRUE);
 }
 
 // 一键配置：按当前所选省份/城市等级生成"普通人生活水平"占比模板，
 // 填入滑块并刷新（TBM_SETPOS 不触发 WM_HSCROLL，故需手动刷新）
 static void ApplyDefaultRatios() {
-    int provIdx = (int)SendMessageW(g.hProvinceCombo, CB_GETCURSEL, 0, 0);
+    int provIdx = (int)SendMessageW(bg.hProvinceCombo, CB_GETCURSEL, 0, 0);
     std::wstring province = (provIdx >= 0 && provIdx < kProvinceCount)
                                 ? kProvinceTable[provIdx].name : L"";
-    int cityIdx = (int)SendMessageW(g.hCityCombo, CB_GETCURSEL, 0, 0);
+    int cityIdx = (int)SendMessageW(bg.hCityCombo, CB_GETCURSEL, 0, 0);
     std::wstring cityLevel = (cityIdx >= 0 && cityIdx < kCityCount)
                                  ? kCityTable[cityIdx].level : L"";
 
@@ -658,29 +688,17 @@ static void ApplyDefaultRatios() {
     defaultRatiosForRegion(cityFactor(cityLevel, nullptr),
                            provinceFactor(province, nullptr), def);
     for (int i = 0; i < kCategoryCount; ++i)
-        SendMessageW(g.hSliders[i], TBM_SETPOS, TRUE, (int)(def[i] * 100.0 + 0.5));
+        SendMessageW(bg.hSliders[i], TBM_SETPOS, TRUE, (int)(def[i] * 100.0 + 0.5));
     RefreshPlan();
-}
-
-// ===================== 控件工具 =====================
-
-static HWND CreateLabel(HWND parent, const wchar_t* text, int x, int y, int w, int h) {
-    return CreateWindowW(L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
-                         x, y, w, h, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
-}
-
-static HWND CreateGroup(HWND parent, const wchar_t* text, int x, int y, int w, int h) {
-    return CreateWindowW(L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                         x, y, w, h, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
 }
 
 // ===================== 主窗口过程 =====================
 
-LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK BudgetMainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
-        g.hwnd = hwnd;
-        g.updating = true;
+        bg.hwnd = hwnd;
+        bg.updating = true;
 
         HFONT font = CreateFontW(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
                                  0, 0, CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
@@ -698,84 +716,84 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // ---- 周期 ----
         HWND hPeriod = CreateGroup(hwnd, L"周期", 14, 48, 350, 60);
         SendMessageW(hPeriod, WM_SETFONT, (WPARAM)font, TRUE);
-        g.hPeriodMonth = CreateWindowW(L"BUTTON", L"一个月", WS_CHILD | WS_VISIBLE |
-                                       BS_AUTORADIOBUTTON | WS_GROUP, 28, 72, 80, 22,
-                                       hwnd, (HMENU)(INT_PTR)ID_PERIOD_MONTH, GetModuleHandleW(nullptr), nullptr);
-        g.hPeriodYear = CreateWindowW(L"BUTTON", L"一年", WS_CHILD | WS_VISIBLE |
-                                      BS_AUTORADIOBUTTON, 118, 72, 70, 22,
-                                      hwnd, (HMENU)(INT_PTR)ID_PERIOD_YEAR, GetModuleHandleW(nullptr), nullptr);
-        SendMessageW(g.hPeriodMonth, WM_SETFONT, (WPARAM)font, TRUE);
-        SendMessageW(g.hPeriodYear, WM_SETFONT, (WPARAM)font, TRUE);
-        SendMessageW(g.hPeriodMonth, BM_SETCHECK, BST_CHECKED, 0);
+        bg.hPeriodMonth = CreateWindowW(L"BUTTON", L"一个月", WS_CHILD | WS_VISIBLE |
+                                        BS_AUTORADIOBUTTON | WS_GROUP, 28, 72, 80, 22,
+                                        hwnd, (HMENU)(INT_PTR)ID_PERIOD_MONTH, GetModuleHandleW(nullptr), nullptr);
+        bg.hPeriodYear = CreateWindowW(L"BUTTON", L"一年", WS_CHILD | WS_VISIBLE |
+                                       BS_AUTORADIOBUTTON, 118, 72, 70, 22,
+                                       hwnd, (HMENU)(INT_PTR)ID_PERIOD_YEAR, GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(bg.hPeriodMonth, WM_SETFONT, (WPARAM)font, TRUE);
+        SendMessageW(bg.hPeriodYear, WM_SETFONT, (WPARAM)font, TRUE);
+        SendMessageW(bg.hPeriodMonth, BM_SETCHECK, BST_CHECKED, 0);
 
         // ---- 所在省份 ----
         HWND hProv = CreateGroup(hwnd, L"所在省份", 14, 116, 350, 60);
         SendMessageW(hProv, WM_SETFONT, (WPARAM)font, TRUE);
         HWND hProvLabel = CreateLabel(hwnd, L"省份", 28, 138, 84, 26);
         SendMessageW(hProvLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        g.hProvinceCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE |
-                                         CBS_DROPDOWNLIST | WS_VSCROLL,
-                                         102, 138, 170, 300, hwnd, (HMENU)(INT_PTR)ID_PROVINCE_COMBO,
-                                         GetModuleHandleW(nullptr), nullptr);
+        bg.hProvinceCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE |
+                                          CBS_DROPDOWNLIST | WS_VSCROLL,
+                                          102, 138, 170, 300, hwnd, (HMENU)(INT_PTR)ID_PROVINCE_COMBO,
+                                          GetModuleHandleW(nullptr), nullptr);
         for (int i = 0; i < kProvinceCount; ++i)
-            SendMessageW(g.hProvinceCombo, CB_ADDSTRING, 0, (LPARAM)kProvinceTable[i].name);
-        SendMessageW(g.hProvinceCombo, CB_SETCURSEL, 18, 0);  // 默认广东省
-        SendMessageW(g.hProvinceCombo, WM_SETFONT, (WPARAM)font, TRUE);
+            SendMessageW(bg.hProvinceCombo, CB_ADDSTRING, 0, (LPARAM)kProvinceTable[i].name);
+        SendMessageW(bg.hProvinceCombo, CB_SETCURSEL, 18, 0);  // 默认广东省
+        SendMessageW(bg.hProvinceCombo, WM_SETFONT, (WPARAM)font, TRUE);
 
         // ---- 城市等级 ----
         HWND hCity = CreateGroup(hwnd, L"所在城市等级", 14, 184, 350, 60);
         SendMessageW(hCity, WM_SETFONT, (WPARAM)font, TRUE);
         HWND hCityLabel = CreateLabel(hwnd, L"城市等级", 28, 206, 84, 26);
         SendMessageW(hCityLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        g.hCityCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE |
-                                     CBS_DROPDOWNLIST | WS_VSCROLL,
-                                     102, 206, 130, 200, hwnd, (HMENU)(INT_PTR)ID_CITY_COMBO,
-                                     GetModuleHandleW(nullptr), nullptr);
+        bg.hCityCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE |
+                                      CBS_DROPDOWNLIST | WS_VSCROLL,
+                                      102, 206, 130, 200, hwnd, (HMENU)(INT_PTR)ID_CITY_COMBO,
+                                      GetModuleHandleW(nullptr), nullptr);
         for (int i = 0; kCityLevels[i]; ++i)
-            SendMessageW(g.hCityCombo, CB_ADDSTRING, 0, (LPARAM)kCityLevels[i]);
-        SendMessageW(g.hCityCombo, CB_SETCURSEL, 2, 0);  // 默认二线城市
-        SendMessageW(g.hCityCombo, WM_SETFONT, (WPARAM)font, TRUE);
+            SendMessageW(bg.hCityCombo, CB_ADDSTRING, 0, (LPARAM)kCityLevels[i]);
+        SendMessageW(bg.hCityCombo, CB_SETCURSEL, 2, 0);  // 默认二线城市
+        SendMessageW(bg.hCityCombo, WM_SETFONT, (WPARAM)font, TRUE);
 
         // ---- 预算模式（右上角，单独放置，远离左侧控件） ----
         HWND hModeLabel = CreateLabel(hwnd, L"预算模式", 556, 16, 96, 26);
         SendMessageW(hModeLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        g.hModeRecommend = CreateWindowW(L"BUTTON", L"推荐预算", WS_CHILD | WS_VISIBLE |
-                                         BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,
-                                         650, 16, 100, 24, hwnd, (HMENU)(INT_PTR)ID_MODE_RECOMMEND,
-                                         GetModuleHandleW(nullptr), nullptr);
-        g.hModeCustom = CreateWindowW(L"BUTTON", L"自定义预算", WS_CHILD | WS_VISIBLE |
-                                      BS_AUTORADIOBUTTON,
-                                      770, 16, 110, 24, hwnd, (HMENU)(INT_PTR)ID_MODE_CUSTOM,
-                                      GetModuleHandleW(nullptr), nullptr);
-        SendMessageW(g.hModeRecommend, WM_SETFONT, (WPARAM)font, TRUE);
-        SendMessageW(g.hModeCustom, WM_SETFONT, (WPARAM)font, TRUE);
-        SendMessageW(g.hModeRecommend, BM_SETCHECK, BST_CHECKED, 0);
+        bg.hModeRecommend = CreateWindowW(L"BUTTON", L"推荐预算", WS_CHILD | WS_VISIBLE |
+                                          BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,
+                                          650, 16, 100, 24, hwnd, (HMENU)(INT_PTR)ID_MODE_RECOMMEND,
+                                          GetModuleHandleW(nullptr), nullptr);
+        bg.hModeCustom = CreateWindowW(L"BUTTON", L"自定义预算", WS_CHILD | WS_VISIBLE |
+                                       BS_AUTORADIOBUTTON,
+                                       770, 16, 110, 24, hwnd, (HMENU)(INT_PTR)ID_MODE_CUSTOM,
+                                       GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(bg.hModeRecommend, WM_SETFONT, (WPARAM)font, TRUE);
+        SendMessageW(bg.hModeCustom, WM_SETFONT, (WPARAM)font, TRUE);
+        SendMessageW(bg.hModeRecommend, BM_SETCHECK, BST_CHECKED, 0);
 
         // ---- 收入 / 自定义总预算 ----
         HWND hInc = CreateGroup(hwnd, L"收入", 14, 252, 350, 132);
         SendMessageW(hInc, WM_SETFONT, (WPARAM)font, TRUE);
         HWND hIncomeLabel = CreateLabel(hwnd, L"收入(元)", 28, 272, 84, 26);
         SendMessageW(hIncomeLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        g.hIncome = CreateWindowW(L"EDIT", L"8000", WS_CHILD | WS_VISIBLE | WS_BORDER |
-                                  WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
-                                  120, 272, 120, 24, hwnd, (HMENU)(INT_PTR)ID_INCOME_EDIT,
-                                  GetModuleHandleW(nullptr), nullptr);
-        SendMessageW(g.hIncome, WM_SETFONT, (WPARAM)font, TRUE);
+        bg.hIncome = CreateWindowW(L"EDIT", L"8000", WS_CHILD | WS_VISIBLE | WS_BORDER |
+                                   WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
+                                   120, 272, 120, 24, hwnd, (HMENU)(INT_PTR)ID_INCOME_EDIT,
+                                   GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(bg.hIncome, WM_SETFONT, (WPARAM)font, TRUE);
         HWND hIncHint = CreateLabel(hwnd, L"月周期填月收入，年周期填年收入", 28, 302, 322, 26);
         SendMessageW(hIncHint, WM_SETFONT, (WPARAM)fontLarge, TRUE);
         // 自定义预算第二行（默认隐藏，切到自定义模式时显示）
-        g.hBudgetLabel = CreateLabel(hwnd, L"总预算(元)", 28, 330, 84, 26);
-        SendMessageW(g.hBudgetLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        g.hBudgetEdit = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_BORDER |
-                                      WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
-                                      120, 328, 120, 24, hwnd, (HMENU)(INT_PTR)ID_BUDGET_EDIT,
-                                      GetModuleHandleW(nullptr), nullptr);
-        SendMessageW(g.hBudgetEdit, WM_SETFONT, (WPARAM)font, TRUE);
-        g.hBudgetHint = CreateLabel(hwnd, L"总预算不能超过收入", 28, 358, 322, 26);
-        SendMessageW(g.hBudgetHint, WM_SETFONT, (WPARAM)fontLarge, TRUE);
-        ShowWindow(g.hBudgetLabel, SW_HIDE);
-        ShowWindow(g.hBudgetEdit, SW_HIDE);
-        ShowWindow(g.hBudgetHint, SW_HIDE);
+        bg.hBudgetLabel = CreateLabel(hwnd, L"总预算(元)", 28, 330, 84, 26);
+        SendMessageW(bg.hBudgetLabel, WM_SETFONT, (WPARAM)fontLarge, TRUE);
+        bg.hBudgetEdit = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_BORDER |
+                                       WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
+                                       120, 328, 120, 24, hwnd, (HMENU)(INT_PTR)ID_BUDGET_EDIT,
+                                       GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(bg.hBudgetEdit, WM_SETFONT, (WPARAM)font, TRUE);
+        bg.hBudgetHint = CreateLabel(hwnd, L"总预算不能超过收入", 28, 358, 322, 26);
+        SendMessageW(bg.hBudgetHint, WM_SETFONT, (WPARAM)fontLarge, TRUE);
+        ShowWindow(bg.hBudgetLabel, SW_HIDE);
+        ShowWindow(bg.hBudgetEdit, SW_HIDE);
+        ShowWindow(bg.hBudgetHint, SW_HIDE);
 
         // ---- 支出比例滑块 ----
         HWND hPref = CreateGroup(hwnd, L"支出比例", 14, 392, 350, 356);
@@ -786,22 +804,27 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                                    96, 394, 252, 24, hwnd, (HMENU)(INT_PTR)ID_AUTO_BUTTON,
                                    GetModuleHandleW(nullptr), nullptr);
         SendMessageW(hAuto, WM_SETFONT, (WPARAM)font, TRUE);
-        // 预填按默认地区（广东 × 二线城市）生成的普通人占比模板
+        // 预填默认占比：若主程序通过 ShowBudgetPlanner 传入占比（如 if 线），则优先使用
         double initRatios[kCategoryCount] = {0};
-        defaultRatiosForRegion(cityFactor(L"二线城市", nullptr),
-                               provinceFactor(L"广东", nullptr), initRatios);
+        if (g_hasInitWeights) {
+            for (int i = 0; i < kCategoryCount; ++i)
+                initRatios[i] = g_initWeights[i];
+        } else {
+            defaultRatiosForRegion(cityFactor(L"二线城市", nullptr),
+                                   provinceFactor(L"广东", nullptr), initRatios);
+        }
         for (int i = 0; i < kCategoryCount; ++i) {
             int sy = 420 + i * 30;
-            g.hSliders[i] = CreateWindowW(L"msctls_trackbar32", L"",
-                                          WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_AUTOTICKS,
-                                          116, sy - 3, 112, 24, hwnd, (HMENU)(INT_PTR)(ID_SLIDER_BASE + i),
-                                          GetModuleHandleW(nullptr), nullptr);
-            SendMessageW(g.hSliders[i], TBM_SETRANGE, TRUE, MAKELPARAM(0, 100));
-            SendMessageW(g.hSliders[i], TBM_SETPOS, TRUE, (int)(initRatios[i] * 100.0 + 0.5));
-            SendMessageW(g.hSliders[i], WM_SETFONT, (WPARAM)font, TRUE);
+            bg.hSliders[i] = CreateWindowW(L"msctls_trackbar32", L"",
+                                           WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_AUTOTICKS,
+                                           116, sy - 3, 112, 24, hwnd, (HMENU)(INT_PTR)(ID_SLIDER_BASE + i),
+                                           GetModuleHandleW(nullptr), nullptr);
+            SendMessageW(bg.hSliders[i], TBM_SETRANGE, TRUE, MAKELPARAM(0, 100));
+            SendMessageW(bg.hSliders[i], TBM_SETPOS, TRUE, (int)(initRatios[i] * 100.0 + 0.5));
+            SendMessageW(bg.hSliders[i], WM_SETFONT, (WPARAM)font, TRUE);
 
-            g.hPctLabels[i] = CreateLabel(hwnd, L"0", 234, sy, 40, 22);
-            SendMessageW(g.hPctLabels[i], WM_SETFONT, (WPARAM)font, TRUE);
+            bg.hPctLabels[i] = CreateLabel(hwnd, L"0", 234, sy, 40, 22);
+            SendMessageW(bg.hPctLabels[i], WM_SETFONT, (WPARAM)font, TRUE);
 
             // 占比微调按钮："-" 每点一次 -1%，"+" 每点一次 +1%
             HWND hDec = CreateWindowW(L"BUTTON", L"-", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -809,8 +832,8 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                                       GetModuleHandleW(nullptr), nullptr);
             SendMessageW(hDec, WM_SETFONT, (WPARAM)font, TRUE);
             HWND hIncBtn = CreateWindowW(L"BUTTON", L"+", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                                          306, sy, 24, 22, hwnd, (HMENU)(INT_PTR)(ID_INC_BASE + i),
-                                          GetModuleHandleW(nullptr), nullptr);
+                                         306, sy, 24, 22, hwnd, (HMENU)(INT_PTR)(ID_INC_BASE + i),
+                                         GetModuleHandleW(nullptr), nullptr);
             SendMessageW(hIncBtn, WM_SETFONT, (WPARAM)font, TRUE);
 
             // 分类名
@@ -819,12 +842,19 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // ---- 右侧结果区 ----
-        g.hResult = CreateWindowExW(WS_EX_CLIENTEDGE, L"BudgetResultWindow", L"",
-                                    WS_CHILD | WS_VISIBLE,
-                                    378, 48, 568, 700, hwnd, nullptr,
-                                    GetModuleHandleW(nullptr), nullptr);
+        bg.hResult = CreateWindowExW(WS_EX_CLIENTEDGE, L"BudgetResultWindow", L"",
+                                     WS_CHILD | WS_VISIBLE,
+                                     378, 48, 568, 700, hwnd, nullptr,
+                                     GetModuleHandleW(nullptr), nullptr);
 
-        g.updating = false;
+        // ---- 应用此方案到主程序（用于超支预警） ----
+        bg.hApply = CreateWindowW(L"BUTTON", L"✓ 应用此方案到主程序（用于超支预警）",
+                                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                  14, 756, 350, 30, hwnd, (HMENU)(INT_PTR)ID_APPLY,
+                                  GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(bg.hApply, WM_SETFONT, (WPARAM)font, TRUE);
+
+        bg.updating = false;
         RefreshPlan();
         return 0;
     }
@@ -832,11 +862,11 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_COMMAND: {
         int id = LOWORD(wParam);
         if (HIWORD(wParam) == EN_CHANGE && id == ID_INCOME_EDIT) {
-            if (!g.updating) RefreshPlan();
+            if (!bg.updating) RefreshPlan();
             return 0;
         }
         if (HIWORD(wParam) == EN_CHANGE && id == ID_BUDGET_EDIT) {
-            if (!g.updating) RefreshPlan();
+            if (!bg.updating) RefreshPlan();
             return 0;
         }
         if (HIWORD(wParam) == CBN_SELCHANGE &&
@@ -857,26 +887,32 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (HIWORD(wParam) == BN_CLICKED &&
             (id == ID_MODE_RECOMMEND || id == ID_MODE_CUSTOM)) {
             bool custom = (id == ID_MODE_CUSTOM);
-            ShowWindow(g.hBudgetLabel, custom ? SW_SHOW : SW_HIDE);
-            ShowWindow(g.hBudgetEdit, custom ? SW_SHOW : SW_HIDE);
-            ShowWindow(g.hBudgetHint, custom ? SW_SHOW : SW_HIDE);
-            EnableWindow(g.hIncome, !custom);
-            if (custom && trim(EditText(g.hBudgetEdit)).empty()) {
+            ShowWindow(bg.hBudgetLabel, custom ? SW_SHOW : SW_HIDE);
+            ShowWindow(bg.hBudgetEdit, custom ? SW_SHOW : SW_HIDE);
+            ShowWindow(bg.hBudgetHint, custom ? SW_SHOW : SW_HIDE);
+            EnableWindow(bg.hIncome, !custom);
+            if (custom && trim(EditText(bg.hBudgetEdit)).empty()) {
                 // 首次进入自定义模式：预填当前推荐总预算，方便在此基础上调整
                 wchar_t buf[32];
-                swprintf(buf, 32, L"%.0f", g.plan.totalBudget);
-                SetWindowTextW(g.hBudgetEdit, buf);
+                swprintf(buf, 32, L"%.0f", bg.plan.totalBudget);
+                SetWindowTextW(bg.hBudgetEdit, buf);
             }
             RefreshPlan();
+            return 0;
+        }
+        // 应用此方案到主程序
+        if (HIWORD(wParam) == BN_CLICKED && id == ID_APPLY) {
+            OnApplyPlan(bg.plan);
+            DestroyWindow(hwnd);
             return 0;
         }
         // 占比微调："-" 每点一次 -1%，"+" 每点一次 +1%（clamp 0-100）
         if (HIWORD(wParam) == BN_CLICKED &&
             id >= ID_DEC_BASE && id < ID_DEC_BASE + kCategoryCount) {
             int i = id - ID_DEC_BASE;
-            int pos = (int)SendMessageW(g.hSliders[i], TBM_GETPOS, 0, 0);
+            int pos = (int)SendMessageW(bg.hSliders[i], TBM_GETPOS, 0, 0);
             if (pos > 0) {
-                SendMessageW(g.hSliders[i], TBM_SETPOS, TRUE, pos - 1);
+                SendMessageW(bg.hSliders[i], TBM_SETPOS, TRUE, pos - 1);
                 RefreshPlan();
             }
             return 0;
@@ -884,9 +920,9 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (HIWORD(wParam) == BN_CLICKED &&
             id >= ID_INC_BASE && id < ID_INC_BASE + kCategoryCount) {
             int i = id - ID_INC_BASE;
-            int pos = (int)SendMessageW(g.hSliders[i], TBM_GETPOS, 0, 0);
+            int pos = (int)SendMessageW(bg.hSliders[i], TBM_GETPOS, 0, 0);
             if (pos < 100) {
-                SendMessageW(g.hSliders[i], TBM_SETPOS, TRUE, pos + 1);
+                SendMessageW(bg.hSliders[i], TBM_SETPOS, TRUE, pos + 1);
                 RefreshPlan();
             }
             return 0;
@@ -897,7 +933,7 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_HSCROLL: {
         // 判断哪个滑块被拖动（lParam 为滑块句柄）
         for (int i = 0; i < kCategoryCount; ++i) {
-            if ((HWND)lParam == g.hSliders[i]) {
+            if ((HWND)lParam == bg.hSliders[i]) {
                 RefreshPlan();
                 break;
             }
@@ -907,7 +943,7 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_SIZE: {
         RECT rc; GetClientRect(hwnd, &rc);
-        SetWindowPos(g.hResult, nullptr, 378, 48, rc.right - 378 - 14, rc.bottom - 48 - 14,
+        SetWindowPos(bg.hResult, nullptr, 378, 48, rc.right - 378 - 14, rc.bottom - 48 - 14,
                      SWP_NOZORDER);
         return 0;
     }
@@ -916,24 +952,21 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY:
-        PostQuitMessage(0);
+        if (hwnd == bg.hwnd) bg.hwnd = nullptr;
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-// ===================== 入口 =====================
+// ===================== 注册窗口类 =====================
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
-    INITCOMMONCONTROLSEX icc{};
-    icc.dwSize = sizeof(icc);
-    icc.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES;
-    InitCommonControlsEx(&icc);
+void RegisterBudgetClasses() {
+    if (g_classRegistered) return;
 
     WNDCLASSEXW wcResult{};
     wcResult.cbSize = sizeof(wcResult);
-    wcResult.lpfnWndProc = ResultProc;
-    wcResult.hInstance = hInstance;
+    wcResult.lpfnWndProc = BudgetResultProc;
+    wcResult.hInstance = GetModuleHandleW(nullptr);
     wcResult.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wcResult.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcResult.lpszClassName = L"BudgetResultWindow";
@@ -941,8 +974,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
-    wc.lpfnWndProc = MainProc;
-    wc.hInstance = hInstance;
+    wc.lpfnWndProc = BudgetMainProc;
+    wc.hInstance = GetModuleHandleW(nullptr);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName = L"BudgetPlannerMain";
@@ -950,12 +983,72 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     wc.hIconSm = LoadIconW(nullptr, IDI_APPLICATION);
     RegisterClassExW(&wc);
 
-    g.hwnd = CreateWindowExW(0, L"BudgetPlannerMain", L"生活预支出规划",
+    g_classRegistered = true;
+}
+
+// ===================== 打开规划窗口（供主程序调用） =====================
+// owner       : 父窗口（可为 nullptr）
+// initWeights : 可选，长度 11 的占比数组（0-100），用于预填滑块
+//               （如 if 线生成的消费结构）；传 nullptr 表示用默认模板
+void ShowBudgetPlanner(HWND owner, const double* initWeights) {
+    INITCOMMONCONTROLSEX icc{};
+    icc.dwSize = sizeof(icc);
+    icc.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES;
+    InitCommonControlsEx(&icc);
+
+    RegisterBudgetClasses();
+
+    if (initWeights) {
+        for (int i = 0; i < kCategoryCount; ++i) {
+            double v = initWeights[i];
+            if (v < 0) v = 0;
+            if (v > 100) v = 100;
+            g_initWeights[i] = v;
+        }
+        g_hasInitWeights = true;
+    } else {
+        g_hasInitWeights = false;
+    }
+
+    HWND w = CreateWindowExW(0, L"BudgetPlannerMain", L"生活预支出规划",
                              WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-                             970, 800, nullptr, nullptr, hInstance, nullptr);
-    if (!g.hwnd) return 1;
-    ShowWindow(g.hwnd, nCmdShow);
-    UpdateWindow(g.hwnd);
+                             970, 820, owner, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!w) return;
+    ShowWindow(w, SW_SHOW);
+    UpdateWindow(w);
+}
+
+}  // namespace budgetui
+
+// ===================== 独立演示模式 =====================
+// 仅当定义 BUDGET_PLANNER_MAIN 时编译（独立可执行文件）；
+// 被主程序 include 时不定义该宏，以下代码自动失效。
+
+#ifdef BUDGET_PLANNER_MAIN
+
+#include <fstream>
+
+namespace budgetui {
+// 演示模式下 OnApplyPlan 的默认实现：提示已应用
+void OnApplyPlan(const BudgetPlan& plan) {
+    std::wstring msg = L"预算方案已生成：\n";
+    msg += L"  总预算：" + fmtMoney(plan.totalBudget) + L" 元";
+    if (plan.period == L"year") msg += L"（年，月均 " + fmtMoney(plan.budgetPerMonth) + L" 元）";
+    msg += L"\n  月储蓄：" + fmtMoney(plan.income - plan.budgetPerMonth) + L" 元\n\n";
+    msg += L"（独立演示模式下不保存；并入主程序后点击此按钮，将把方案用于超支预警。）";
+    MessageBoxW(bg.hwnd ? bg.hwnd : nullptr, msg.c_str(), L"预算方案", MB_OK | MB_ICONINFORMATION);
+}
+}  // namespace budgetui
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
+    budgetui::RegisterBudgetClasses();
+
+    budgetui::bg.hwnd = CreateWindowExW(0, L"BudgetPlannerMain", L"生活预支出规划",
+                                        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+                                        970, 820, nullptr, nullptr, hInstance, nullptr);
+    if (!budgetui::bg.hwnd) return 1;
+    ShowWindow(budgetui::bg.hwnd, nCmdShow);
+    UpdateWindow(budgetui::bg.hwnd);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0)) {
@@ -964,3 +1057,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     }
     return 0;
 }
+
+#endif  // BUDGET_PLANNER_MAIN
+
+#endif  // SMART_LEDGER_BUDGET_PLANNER_CPP_
