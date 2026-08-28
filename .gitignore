@@ -1,0 +1,23 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Android
+SmartButler/.idea/
+SmartButler/build/
+SmartButler/app/build/
+SmartButler/*.iml
+SmartButler/local.properties
+
+# 后端
+backend/__pycache__/
+backend/*.pyc
+backend/smartbutler.db
+backend/.env
+backend/venv/
+
+# 系统
+Thumbs.db
+.DS_Store

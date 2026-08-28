@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# 本地数据库
+*.db
+*.db-journal
+
+# IDE
+.idea/
+.vscode/

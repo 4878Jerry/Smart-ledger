@@ -1056,8 +1056,8 @@ static void DrawChart(HWND hwnd) {
                 graphics.DrawLine(&gp, r1.left + padL, yy, r1.left + padL + plotW, yy);
             }
             // 坐标轴
-            graphics.DrawLine(&linePen, r1.left + padL, r1.bottom - padB, r1.left + padL + plotW, r1.bottom - padB);
-            graphics.DrawLine(&linePen, r1.left + padL, r1.bottom - padB, r1.left + padL, r1.bottom - padB - plotH);
+            graphics.DrawLine(&linePen, (INT)(r1.left + padL), (INT)(r1.bottom - padB), (INT)(r1.left + padL + plotW), (INT)(r1.bottom - padB));
+            graphics.DrawLine(&linePen, (INT)(r1.left + padL), (INT)(r1.bottom - padB), (INT)(r1.left + padL), (INT)(r1.bottom - padB - plotH));
         }
     }
 
@@ -1146,7 +1146,7 @@ static void DrawChart(HWND hwnd) {
                 Pen gp(Color(200, 200, 200), 1);
                 graphics.DrawLine(&gp, r3.left + padL, yy, r3.left + padL + plotW, yy);
             }
-            graphics.DrawLine(&linePen, r3.left + padL, r3.bottom - padB, r3.left + padL + plotW, r3.bottom - padB);
+            graphics.DrawLine(&linePen, (INT)(r3.left + padL), (INT)(r3.bottom - padB), (INT)(r3.left + padL + plotW), (INT)(r3.bottom - padB));
             // 图例
             graphics.FillRectangle(&SolidBrush(Color(239, 83, 80)), r3.right - 70, r3.top + 30, 12, 12);
             graphics.DrawString(L"支出", -1, &axisFont, PointF((REAL)(r3.right - 54), (REAL)(r3.top + 29)), &axisBrush);

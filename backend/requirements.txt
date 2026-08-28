@@ -1,0 +1,7 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+sqlalchemy[asyncio]>=2.0.25
+aiosqlite>=0.20.0
+python-jose[cryptography]>=3.3.0
+# 直接使用 bcrypt 官方库（passlib 1.7.4 与 bcrypt 4.1+ 不兼容，弃用 passlib）
+bcrypt>=4.1.0

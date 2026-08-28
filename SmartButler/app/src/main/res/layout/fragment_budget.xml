@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/budget_title"
+            android:textColor="@color/primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/budget_subtitle"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <!-- 省份 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/budget_province"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/sp_province"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@color/card_bg"
+            android:spinnerMode="dropdown" />
+
+        <!-- 城市等级 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/budget_city"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/sp_city"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@color/card_bg"
+            android:spinnerMode="dropdown" />
+
+        <TextView
+            android:id="@+id/tv_factor"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/accent"
+            android:textSize="13sp" />
+
+        <!-- 月生活费总额 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/budget_total"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/et_total"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/card_bg"
+            android:hint="@string/budget_total_hint"
+            android:inputType="numberDecimal"
+            android:padding="12dp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
+
+        <!-- 分类占比滑块 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/budget_slider_title"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/slider_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_default"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/budget_default" />
+
+            <Button
+                android:id="@+id/btn_generate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="@string/budget_generate" />
+        </LinearLayout>
+
+        <!-- 结果 -->
+        <LinearLayout
+            android:id="@+id/result_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@color/card_bg"
+            android:orientation="vertical"
+            android:padding="16dp" />
+    </LinearLayout>
+</ScrollView>

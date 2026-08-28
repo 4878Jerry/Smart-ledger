@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色主题颜色 -->
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#808080</color>
+
+    <!-- 兼容别名（布局中广泛引用） -->
+    <color name="bg">#121212</color>
+    <color name="card_bg">#1E1E1E</color>
+
+    <!-- 基础 -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- 主题色（深色模式用亮色主调） -->
+    <color name="primary">#BB86FC</color>
+    <color name="primary_dark">#7C4DFF</color>
+    <color name="accent">#FF7043</color>
+
+    <!-- 收支（深色下提亮） -->
+    <color name="income">#81C784</color>
+    <color name="expense">#FF8A80</color>
+
+    <!-- 预警 -->
+    <color name="warn_bg">#4E342E</color>
+    <color name="warn_text">#FFAB91</color>
+
+    <!-- 社区 -->
+    <color name="divider">#2E2E2E</color>
+    <color name="liked">#FF8A80</color>
+
+    <!-- 离线提示条（浅灰背景 + 灰色文字） -->
+    <color name="banner_bg">#E8E8E8</color>
+    <color name="banner_text">#757575</color>
+
+    <!-- 左滑删除背景 -->
+    <color name="delete_bg">#B3261E</color>
+</resources>

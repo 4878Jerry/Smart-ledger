@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">智能管家 SmartButler</string>
+
+    <!-- 首页 -->
+    <string name="summary_income">本月收入</string>
+    <string name="summary_expense">本月支出</string>
+    <string name="summary_balance">本月结余</string>
+    <string name="personality_placeholder">消费人格：--</string>
+    <string name="advice_placeholder">AI 建议：--</string>
+    <string name="fab_add_desc">添加记账</string>
+    <string name="empty_records">暂无记账记录，点击右下角 + 添加</string>
+    <string name="empty_chart">暂无数据，先去记一笔吧</string>
+
+    <!-- 预算 -->
+    <string name="budget_title">预算规划</string>
+    <string name="budget_subtitle">根据省份与城市等级推荐月生活费</string>
+    <string name="budget_province">所在省份</string>
+    <string name="budget_city">城市等级</string>
+    <string name="budget_total">月生活费总额（元）</string>
+    <string name="budget_total_hint">输入月度总预算</string>
+    <string name="budget_slider_title">分类占比设置</string>
+    <string name="budget_default">使用默认占比</string>
+    <string name="budget_generate">生成预算</string>
+
+    <!-- 预警 -->
+    <string name="view_day">日</string>
+    <string name="view_month">月</string>
+    <string name="view_year">年</string>
+    <string name="alert_category_title">分类汇总</string>
+    <string name="alert_if_title">IF 假设分析</string>
+
+    <!-- 我的 -->
+    <string name="mascot_name">小管家</string>
+    <string name="mascot_slogan">你的智能记账助手</string>
+    <string name="profile_placeholder">更多个性化设置即将上线……</string>
+
+    <!-- 语音 / OCR -->
+    <string name="voice_title">语音记账</string>
+    <string name="ocr_title">图片识别记账</string>
+</resources>
