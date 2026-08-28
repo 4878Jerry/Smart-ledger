@@ -17,6 +17,7 @@ backend/*.pyc
 backend/smartbutler.db
 backend/.env
 backend/venv/
+backend/*.log
 
 # 系统
 Thumbs.db
