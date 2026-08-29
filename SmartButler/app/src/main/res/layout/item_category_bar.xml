@@ -5,10 +5,17 @@
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
+    <!-- 类别名 + 色块 -->
+    <View
+        android:id="@+id/view_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp" />
+
     <TextView
         android:id="@+id/tv_cat_name"
         android:layout_width="56dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
         android:textColor="@color/text_primary"
         android:textSize="13sp" />
 
@@ -23,8 +30,7 @@
         <View
             android:id="@+id/view_bar"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_bar_fill" />
+            android:layout_height="match_parent" />
 
         <View
             android:id="@+id/view_bar_spacer"
@@ -34,9 +40,10 @@
 
     <TextView
         android:id="@+id/tv_cat_info"
-        android:layout_width="64dp"
+        android:layout_width="56dp"
         android:layout_height="wrap_content"
         android:gravity="end"
-        android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
+        android:textColor="@color/text_primary"
+        android:textSize="11sp"
+        android:textStyle="bold" />
 </LinearLayout>

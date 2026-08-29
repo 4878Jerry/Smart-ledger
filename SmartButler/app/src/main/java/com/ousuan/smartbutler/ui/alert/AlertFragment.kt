@@ -17,6 +17,7 @@ import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.data.BudgetPrefs
 import com.ousuan.smartbutler.data.Transaction
 import com.ousuan.smartbutler.databinding.FragmentAlertBinding
+import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.util.ExpenseAnalyzer
 import com.ousuan.smartbutler.util.fmtMoney
 import kotlinx.coroutines.launch
@@ -113,30 +114,82 @@ class AlertFragment : Fragment() {
                 "范围支出 ${fmtMoney(rangeSummary.expense)} 元 · 范围收入 ${fmtMoney(rangeSummary.income)} 元\n" +
                 "今日余额（全部记录）${fmtMoney(allSummary.balance)} 元"
 
-            // 余额预警：余额 < 月预算 20% → 红色警告
+            // 余额预警：余额 < 月预算 20% → 红色警告，小鸥切换为「提醒」表情
             val budgetTotal = BudgetPrefs.total(requireContext())
-            if (budgetTotal > 0 && allSummary.balance < budgetTotal * 0.2) {
+            val hasWarning = budgetTotal > 0 && allSummary.balance < budgetTotal * 0.2
+            if (hasWarning) {
                 binding.tvBalanceWarn.visibility = View.VISIBLE
                 binding.tvBalanceWarn.text =
                     "⚠ 余额预警：当前余额 ${fmtMoney(allSummary.balance)} 元，" +
                     "已低于月预算（${fmtMoney(budgetTotal)} 元）的 20%，请留意支出！"
+                binding.imgMascotAlert.setImageResource(R.drawable.ic_mascot_alert)
+                binding.tvMascotSay.text = "小鸥提醒你：钱袋子告急啦！"
+                binding.tvMascotSaySub.text = "减少非必要支出，守住预算底线"
             } else {
                 binding.tvBalanceWarn.visibility = View.GONE
+                binding.imgMascotAlert.setImageResource(R.drawable.ic_mascot_happy)
+                binding.tvMascotSay.text = "小鸥帮你盯紧钱包"
+                binding.tvMascotSaySub.text = "设置月度预算，消费更安心"
             }
 
-            // 分类汇总
+            // 分类汇总：色点 + 类别名 + 金额(占比)
             binding.catContainer.removeAllViews()
             val cats = ExpenseAnalyzer.categoryAmounts(range)
                 .entries.sortedByDescending { it.value }
+            val catTotal = cats.sumOf { it.value }.coerceAtLeast(0.01)
             if (cats.isEmpty()) {
                 binding.catContainer.addView(simpleRow("该范围暂无记录"))
             } else {
                 cats.forEach { (cat, amount) ->
-                    binding.catContainer.addView(simpleRow("· $cat：${fmtMoney(amount)} 元"))
+                    val row = LinearLayout(requireContext()).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, dp(6), 0, dp(6))
+                    }
+                    // 圆点
+                    val dot = View(requireContext()).apply {
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.OVAL
+                            setColor(Categories.color(cat))
+                        }
+                        layoutParams = LinearLayout.LayoutParams(dp(10), dp(10))
+                    }
+                    // 类别名（占剩余宽度）
+                    val tvName = TextView(requireContext()).apply {
+                        text = cat
+                        textSize = 13f
+                        setTextColor(requireContext().getColor(R.color.text_primary))
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                            .apply { marginStart = dp(8) }
+                    }
+                    // 占比（彩色加粗）+ 金额
+                    val pct = (amount / catTotal * 100).toInt()
+                    val rightWrap = LinearLayout(requireContext()).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                    }
+                    val tvPct = TextView(requireContext()).apply {
+                        text = "$pct%"
+                        textSize = 11f
+                        setTextColor(Categories.color(cat))
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    val tvAmt = TextView(requireContext()).apply {
+                        text = "  ¥${fmtMoney(amount)}"
+                        textSize = 13f
+                        setTextColor(requireContext().getColor(R.color.text_primary))
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    rightWrap.addView(tvPct)
+                    rightWrap.addView(tvAmt)
+                    row.addView(dot)
+                    row.addView(tvName)
+                    row.addView(rightWrap)
+                    binding.catContainer.addView(row)
                 }
             }
 
-            // IF 线模拟列表
+            // IF 线模拟列表：日期·类别 + 金额 + IF 按钮（chip 风格）
             binding.ifContainer.removeAllViews()
             if (range.isEmpty()) {
                 binding.ifContainer.addView(simpleRow("暂无记录可模拟 IF 线"))
@@ -152,22 +205,61 @@ class AlertFragment : Fragment() {
         setPadding(0, dp(4), 0, dp(4))
     }
 
-    /** 单条 IF 行：点按钮弹窗模拟"没有这笔消费"后的余额 */
+    /** 单条 IF 行：日期 + 类别(色点) + 金额 + IF 按钮（chip 风格） */
     private fun ifRow(r: Transaction, balance: Double): View {
-        val row = LinearLayout(requireContext()).apply {
+        val ctx = requireContext()
+        val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(4))
+            setPadding(0, dp(6), 0, dp(6))
         }
-        row.addView(
-            TextView(requireContext()).apply {
-                text = "${r.date} ${r.category} ${fmtMoney(r.amount)}"
-                textSize = 14f
-            },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        )
-        val btn = Button(requireContext()).apply {
-            text = "IF"
+        // 左侧信息：日期 + 类别行（带色点）+ 金额
+        val leftWrap = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        // 日期 · 类别 行
+        val catRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val dot = View(ctx).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Categories.color(r.category))
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(8), dp(8))
+        }
+        val tvDateCat = TextView(ctx).apply {
+            text = "${r.date}  ${r.category}"
+            textSize = 12f
+            setTextColor(ctx.getColor(R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { marginStart = dp(6) }
+        }
+        catRow.addView(dot)
+        catRow.addView(tvDateCat)
+
+        val tvAmount = TextView(ctx).apply {
+            text = fmtMoney(r.amount)
+            textSize = 14f
+            setTextColor(ctx.getColor(if (r.type == "收入") R.color.income else R.color.expense))
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        leftWrap.addView(catRow)
+        leftWrap.addView(tvAmount)
+
+        // IF 按钮（chip 风格：浅橙背景 + 橙色边框 + 橙字）
+        val btn = TextView(ctx).apply {
+            text = "IF ?"
+            textSize = 12f
+            setTextColor(0xFFC2571B.toInt())
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_if_button)
+            setPadding(dp(14), dp(6), dp(14), dp(6))
+            isClickable = true
+            isFocusable = true
             setOnClickListener {
                 // 支出：没有这笔则余额 += 金额；收入：没有这笔则余额 -= 金额
                 val simulated = if (r.type == "收入") balance - r.amount else balance + r.amount
@@ -181,6 +273,7 @@ class AlertFragment : Fragment() {
                     .show()
             }
         }
+        row.addView(leftWrap)
         row.addView(btn)
         return row
     }

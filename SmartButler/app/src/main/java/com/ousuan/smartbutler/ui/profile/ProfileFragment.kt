@@ -7,7 +7,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -20,6 +23,7 @@ import com.ousuan.smartbutler.databinding.FragmentProfileBinding
 import com.ousuan.smartbutler.ui.auth.LoginActivity
 import com.ousuan.smartbutler.ui.community.MyPostsActivity
 import com.ousuan.smartbutler.ui.settings.SettingsActivity
+import com.ousuan.smartbutler.util.MascotManager
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
@@ -45,6 +49,13 @@ class ProfileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.tvMascotName.text = getString(R.string.mascot_name)
+
+        // 小鸥大头像：跟随全局换装
+        MascotManager.observe(mascotListener)
+        binding.imgMascotProfile.setImageResource(MascotManager.current().drawableRes)
+
+        // 小鸥换装入口 → 形象选择对话框
+        binding.llDressUp.setOnClickListener { showDressUpDialog() }
 
         // 当前登录用户
         refreshUserInfo()
@@ -145,6 +156,71 @@ class ProfileFragment : Fragment() {
         binding.btnSwitchAccount.visibility = if (user != null) View.VISIBLE else View.GONE
     }
 
+    /**
+     * 小鸥换装对话框：展示当前可切换的全部形象（2 列网格）。
+     * 扩展方向：后续可在此叠加「装扮」层（帽子 / 围巾 / 墨镜），
+     * 通过 MascotManager.setSkin() 持久化组合装扮。
+     */
+    private fun showDressUpDialog() {
+        val grid = GridLayout(requireContext()).apply {
+            columnCount = 2
+            rowCount = 2
+            setPadding(dp(20), dp(12), dp(20), dp(4))
+        }
+        val density = resources.displayMetrics.density
+
+        MascotManager.Mascot.values().forEachIndexed { index, mascot ->
+            val cell = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(6), dp(10), dp(6), dp(10))
+                background = if (MascotManager.current() == mascot) {
+                    getDrawableCompat(R.drawable.bg_cell_selected)
+                } else {
+                    getDrawableCompat(R.drawable.bg_cell_normal)
+                }
+                setOnClickListener {
+                    MascotManager.switchMascot(mascot)
+                    Toast.makeText(requireContext(), "已切换为「${mascot.displayName}」", Toast.LENGTH_SHORT).show()
+                    dialogRef?.dismiss()
+                }
+            }
+            val img = ImageView(requireContext()).apply {
+                setImageResource(mascot.drawableRes)
+                layoutParams = ViewGroup.LayoutParams(
+                    (88 * density).toInt(), (88 * density).toInt()
+                )
+                contentDescription = mascot.displayName
+            }
+            val label = TextView(requireContext()).apply {
+                text = mascot.displayName
+                setTextColor(resources.getColor(R.color.text_primary, null))
+                textSize = 12f
+                setPadding(0, dp(6), 0, 0)
+            }
+            cell.addView(img)
+            cell.addView(label)
+
+            val lp = GridLayout.LayoutParams(
+                GridLayout.spec(index / 2, 1f),
+                GridLayout.spec(index % 2, 1f)
+            ).apply {
+                width = 0
+                height = GridLayout.LayoutParams.WRAP_CONTENT
+                setMargins(dp(6), dp(6), dp(6), dp(6))
+            }
+            grid.addView(cell, lp)
+        }
+
+        dialogRef = AlertDialog.Builder(requireContext())
+            .setTitle("选择小鸥形象")
+            .setView(grid)
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private var dialogRef: AlertDialog? = null
+
     /** 弹窗输入新账号用户名/密码 */
     private fun showSwitchAccountDialog() {
         val container = LinearLayout(requireContext()).apply {
@@ -222,8 +298,17 @@ class ProfileFragment : Fragment() {
         requireActivity().finish()
     }
 
+    /** 小鸥换装监听（随页面销毁注销） */
+    private val mascotListener: (MascotManager.Mascot) -> Unit = { m ->
+        _binding?.imgMascotProfile?.setImageResource(m.drawableRes)
+    }
+
     override fun onDestroyView() {
+        MascotManager.removeObserver(mascotListener)
         super.onDestroyView()
         _binding = null
     }
+
+    private fun getDrawableCompat(resId: Int): android.graphics.drawable.Drawable? =
+        androidx.core.content.ContextCompat.getDrawable(requireContext(), resId)
 }

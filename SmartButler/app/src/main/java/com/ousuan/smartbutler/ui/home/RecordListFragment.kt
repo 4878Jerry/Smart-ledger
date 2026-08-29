@@ -49,7 +49,7 @@ class RecordListFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repository.allTransactions.collect { records ->
                 adapter.submit(records)
-                binding.tvEmpty.visibility =
+                binding.llEmpty.visibility =
                     if (records.isEmpty()) View.VISIBLE else View.GONE
             }
         }

@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.ActivityRegisterBinding
+import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.launch
 
 /**
@@ -22,6 +23,9 @@ class RegisterActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // 注册页小鸥：应用全局当前形象
+        binding.imgMascotRegister.setImageResource(MascotManager.current().drawableRes)
 
         binding.btnRegister.setOnClickListener { register() }
     }

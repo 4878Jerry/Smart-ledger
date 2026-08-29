@@ -50,27 +50,31 @@ class LineChartFragment : Fragment() {
     private fun render(records: List<com.ousuan.smartbutler.data.Transaction>) {
         val trend = ExpenseAnalyzer.dailyTrend(records)
         if (trend.isEmpty()) {
-            binding.tvEmpty.visibility = View.VISIBLE
+            binding.llEmpty.visibility = View.VISIBLE
             binding.lineChart.clear()
             return
         }
-        binding.tvEmpty.visibility = View.GONE
+        binding.llEmpty.visibility = View.GONE
 
         val labels = trend.map { it.first.substring(5) } // MM-dd
         val entries = trend.mapIndexed { i, (_, v) -> Entry(i.toFloat(), v.toFloat()) }
+        val brand = requireContext().getColor(R.color.primary)
         val dataSet = LineDataSet(entries, "每日支出").apply {
-            color = Color.parseColor("#FF7043")
+            color = brand
             lineWidth = 2.5f
             setDrawValues(false)
             mode = LineDataSet.Mode.CUBIC_BEZIER
             setDrawCircles(true)
             circleRadius = 3f
-            setCircleColor(Color.parseColor("#FF7043"))
+            setCircleColor(brand)
             setDrawFilled(true)
             fillDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 gradientType = GradientDrawable.LINEAR_GRADIENT
-                setColors(intArrayOf(Color.parseColor("#33FF7043"), Color.parseColor("#00FF7043")))
+                setColors(intArrayOf(
+                    Color.argb(77, Color.red(brand), Color.green(brand), Color.blue(brand)),
+                    Color.argb(0, Color.red(brand), Color.green(brand), Color.blue(brand))
+                ))
             }
         }
 

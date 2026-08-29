@@ -8,6 +8,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ousuan.smartbutler.MainActivity
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.ActivityLoginBinding
+import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +33,9 @@ class LoginActivity : AppCompatActivity() {
 
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // 登录页小鸥：应用全局当前形象
+        binding.imgMascotLogin.setImageResource(MascotManager.current().drawableRes)
 
         binding.etUsername.setText(intent.getStringExtra(EXTRA_USERNAME) ?: "")
 

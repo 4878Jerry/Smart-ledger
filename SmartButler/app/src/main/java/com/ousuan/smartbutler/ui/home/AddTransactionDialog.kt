@@ -84,7 +84,7 @@ class AddTransactionDialog {
                 try {
                     // userId 由 Repository 自动填入当前登录用户
                     repository.insert(transaction)
-                    Toast.makeText(context, "已保存记录", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "已保存记录，小鸥给你点赞~", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     Toast.makeText(context, e.message ?: "保存失败", Toast.LENGTH_SHORT).show()
                 }
