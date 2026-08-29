@@ -14,6 +14,7 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.FragmentHomeBinding
+import com.ousuan.smartbutler.model.MascotLook
 import com.ousuan.smartbutler.ui.ocr.OcrInputActivity
 import com.ousuan.smartbutler.ui.voice.VoiceInputActivity
 import com.ousuan.smartbutler.util.DateUtils
@@ -61,9 +62,9 @@ class HomeFragment : Fragment() {
 
         binding.fabAdd.setOnClickListener { showAddMenu(it) }
 
-        // 首页小鸥头像：跟随全局换装，随页面销毁自动注销监听
+        // 首页小鸥头像：分层渲染，跟随全局换装，随页面销毁自动注销监听
         MascotManager.observe(mascotListener)
-        binding.imgMascotHome.setImageResource(MascotManager.current().drawableRes)
+        MascotManager.applyLookTo(binding.imgMascotHome)
 
         observeSummary()
     }
@@ -115,7 +116,7 @@ class HomeFragment : Fragment() {
     }
 
     /** 小鸥换装监听（随页面销毁注销） */
-    private val mascotListener: (MascotManager.Mascot) -> Unit = { m ->
-        _binding?.imgMascotHome?.setImageResource(m.drawableRes)
+    private val mascotListener: (MascotLook) -> Unit = { look ->
+        _binding?.imgMascotHome?.let { MascotManager.applyLookTo(it, look) }
     }
 }

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 头部配饰：蝴蝶结（粉，对称圆润 + 丝带尾） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 左蝶翼 -->
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M100,34 C90,28 76,30 76,42 C76,54 90,56 100,46 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M100,34 C90,28 76,30 76,42 C76,54 90,56 100,46 Z"
+        android:strokeColor="#BE185D"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+
+    <!-- 右蝶翼 -->
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M100,34 C110,28 124,30 124,42 C124,54 110,56 100,46 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M100,34 C110,28 124,30 124,42 C124,54 110,56 100,46 Z"
+        android:strokeColor="#BE185D"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+
+    <!-- 左丝带尾 -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M97,46 L88,60 Q94,63 99,56 Z" />
+
+    <!-- 右丝带尾 -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M103,46 L112,60 Q106,63 101,56 Z" />
+
+    <!-- 中心结 -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M100,32 A7,5 0 1,1 100,42 A7,5 0 1,1 100,32 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M100,32 A7,5 0 1,1 100,42 A7,5 0 1,1 100,32 Z"
+        android:strokeColor="#BE185D"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round" />
+</vector>

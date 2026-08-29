@@ -359,11 +359,11 @@
             android:paddingBottom="16dp"
             android:visibility="gone">
 
-            <ImageView
+            <FrameLayout
+                android:id="@+id/img_mascot_community"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:contentDescription="@string/mascot_name"
-                android:src="@drawable/ic_mascot" />
+                android:contentDescription="@string/mascot_name" />
 
             <TextView
                 android:id="@+id/tv_empty"

@@ -15,6 +15,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.FragmentListBinding
+import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -45,6 +46,9 @@ class RecordListFragment : Fragment() {
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = adapter
         setupSwipeDelete()
+
+        // 空状态小鸥：分层渲染当前形象
+        MascotManager.applyLookTo(binding.imgMascotList)
 
         viewLifecycleOwner.lifecycleScope.launch {
             repository.allTransactions.collect { records ->

@@ -24,8 +24,8 @@ class RegisterActivity : AppCompatActivity() {
         binding = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 注册页小鸥：应用全局当前形象
-        binding.imgMascotRegister.setImageResource(MascotManager.current().drawableRes)
+        // 注册页小鸥：分层渲染应用全局当前形象
+        MascotManager.applyLookTo(binding.imgMascotRegister)
 
         binding.btnRegister.setOnClickListener { register() }
     }

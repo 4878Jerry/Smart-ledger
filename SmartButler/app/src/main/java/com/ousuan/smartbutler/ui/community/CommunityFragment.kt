@@ -20,6 +20,7 @@ import com.ousuan.smartbutler.data.DataPublicPrefs
 import com.ousuan.smartbutler.data.network.NetworkMonitor
 import com.ousuan.smartbutler.data.repository.CommunityRepository
 import com.ousuan.smartbutler.databinding.FragmentCommunityBinding
+import com.ousuan.smartbutler.util.MascotManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -73,6 +74,8 @@ class CommunityFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // 空状态小鸥：分层渲染当前形象
+        MascotManager.applyLookTo(binding.imgMascotCommunity)
         adapter = CommunityAdapter(
             onLike = { postId -> like(postId) },
             onToggleExpand = { postId -> toggleExpand(postId) },

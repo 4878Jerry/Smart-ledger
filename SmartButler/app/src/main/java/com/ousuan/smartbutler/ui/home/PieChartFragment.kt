@@ -23,6 +23,7 @@ import com.ousuan.smartbutler.ui.widget.BarChartView
 import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.util.DateUtils
 import com.ousuan.smartbutler.util.ExpenseAnalyzer
+import com.ousuan.smartbutler.util.MascotManager
 import com.ousuan.smartbutler.util.fmtMoney
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -53,6 +54,9 @@ class PieChartFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentPieBinding.inflate(inflater, container, false)
+
+        // 空状态小鸥：分层渲染当前形象
+        MascotManager.applyLookTo(binding.imgMascotPie)
 
         // 饼图：环形 + 隐藏内置图例
         binding.pieChart.apply {

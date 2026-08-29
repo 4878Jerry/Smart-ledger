@@ -17,8 +17,10 @@ import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.data.BudgetPrefs
 import com.ousuan.smartbutler.data.Transaction
 import com.ousuan.smartbutler.databinding.FragmentAlertBinding
+import com.ousuan.smartbutler.model.MascotLook
 import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.util.ExpenseAnalyzer
+import com.ousuan.smartbutler.util.MascotManager
 import com.ousuan.smartbutler.util.fmtMoney
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -40,6 +42,9 @@ class AlertFragment : Fragment() {
     private val monthFmt = DateTimeFormatter.ofPattern("yyyy-MM")
     private var viewType = 0 // 0=日 1=月 2=年
     private var cursor = LocalDate.now()
+
+    /** 当前是否有余额预警（决定小鸥表情） */
+    private var warningState = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -65,6 +70,11 @@ class AlertFragment : Fragment() {
         }
         binding.btnPrev.setOnClickListener { moveCursor(-1) }
         binding.btnNext.setOnClickListener { moveCursor(1) }
+
+        // 小鸥：分层渲染，跟随全局换装，并根据预警状态切换表情
+        MascotManager.observe(mascotListener)
+        refreshMascot()
+
         loadData()
     }
 
@@ -116,18 +126,17 @@ class AlertFragment : Fragment() {
 
             // 余额预警：余额 < 月预算 20% → 红色警告，小鸥切换为「提醒」表情
             val budgetTotal = BudgetPrefs.total(requireContext())
-            val hasWarning = budgetTotal > 0 && allSummary.balance < budgetTotal * 0.2
-            if (hasWarning) {
+            warningState = budgetTotal > 0 && allSummary.balance < budgetTotal * 0.2
+            refreshMascot()
+            if (warningState) {
                 binding.tvBalanceWarn.visibility = View.VISIBLE
                 binding.tvBalanceWarn.text =
                     "⚠ 余额预警：当前余额 ${fmtMoney(allSummary.balance)} 元，" +
                     "已低于月预算（${fmtMoney(budgetTotal)} 元）的 20%，请留意支出！"
-                binding.imgMascotAlert.setImageResource(R.drawable.ic_mascot_alert)
                 binding.tvMascotSay.text = "小鸥提醒你：钱袋子告急啦！"
                 binding.tvMascotSaySub.text = "减少非必要支出，守住预算底线"
             } else {
                 binding.tvBalanceWarn.visibility = View.GONE
-                binding.imgMascotAlert.setImageResource(R.drawable.ic_mascot_happy)
                 binding.tvMascotSay.text = "小鸥帮你盯紧钱包"
                 binding.tvMascotSaySub.text = "设置月度预算，消费更安心"
             }
@@ -204,6 +213,20 @@ class AlertFragment : Fragment() {
         textSize = 14f
         setPadding(0, dp(4), 0, dp(4))
     }
+
+    /** 刷新预警页小鸥：分层渲染 + 按预警状态切换表情（预警→提醒，正常→默认） */
+    private fun refreshMascot() {
+        val base = MascotManager.currentLook()
+        val rendered = if (warningState) {
+            base.copy(faceId = "face_alert")
+        } else {
+            base.copy(faceId = "face_default")
+        }
+        _binding?.imgMascotAlert?.let { MascotManager.applyLookTo(it, rendered) }
+    }
+
+    /** 全局换装监听（随页面销毁注销） */
+    private val mascotListener: (MascotLook) -> Unit = { refreshMascot() }
 
     /** 单条 IF 行：日期 + 类别(色点) + 金额 + IF 按钮（chip 风格） */
     private fun ifRow(r: Transaction, balance: Double): View {
@@ -282,6 +305,7 @@ class AlertFragment : Fragment() {
         (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
+        MascotManager.removeObserver(mascotListener)
         super.onDestroyView()
         _binding = null
     }

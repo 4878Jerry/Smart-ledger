@@ -17,6 +17,7 @@ import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.FragmentLineBinding
 import com.ousuan.smartbutler.util.ExpenseAnalyzer
+import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.launch
 
 /** 折线图视图：每日支出趋势 */
@@ -40,6 +41,9 @@ class LineChartFragment : Fragment() {
         binding.lineChart.legend.isEnabled = false
         binding.lineChart.axisRight.isEnabled = false
         binding.lineChart.setTouchEnabled(true)
+
+        // 空状态小鸥：分层渲染当前形象
+        MascotManager.applyLookTo(binding.imgMascotLine)
 
         viewLifecycleOwner.lifecycleScope.launch {
             repository.allTransactions.collect { records -> render(records) }

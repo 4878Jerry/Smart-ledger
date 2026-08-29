@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 开心表情：月牙眼（眯眼笑）+ 张嘴大笑 + 腮红 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 左腮红 -->
+    <path
+        android:fillColor="#FDBA74"
+        android:fillAlpha="0.6"
+        android:pathData="M57,102 A8,6 0 1,1 73,102 A8,6 0 1,1 57,102 Z" />
+
+    <!-- 右腮红 -->
+    <path
+        android:fillColor="#FDBA74"
+        android:fillAlpha="0.6"
+        android:pathData="M127,102 A8,6 0 1,1 143,102 A8,6 0 1,1 127,102 Z" />
+
+    <!-- 左月牙眼（眯眼笑，∩ 形） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M72,88 Q80,76 88,88"
+        android:strokeColor="#22303F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- 右月牙眼 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M112,88 Q120,76 128,88"
+        android:strokeColor="#22303F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- 张嘴大笑（圆润开口，上缘微拱、下缘大圆弧） -->
+    <path
+        android:fillColor="#22303F"
+        android:pathData="M86,114 Q100,120 114,114 Q100,140 86,114 Z" />
+
+    <!-- 舌头（居中收在嘴内，上下均留白，不外露） -->
+    <path
+        android:fillColor="#FB7185"
+        android:pathData="M92,120 Q100,130 108,120 Q100,134 92,120 Z" />
+</vector>

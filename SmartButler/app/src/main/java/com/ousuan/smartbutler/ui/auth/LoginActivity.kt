@@ -34,8 +34,8 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 登录页小鸥：应用全局当前形象
-        binding.imgMascotLogin.setImageResource(MascotManager.current().drawableRes)
+        // 登录页小鸥：分层渲染应用全局当前形象
+        MascotManager.applyLookTo(binding.imgMascotLogin)
 
         binding.etUsername.setText(intent.getStringExtra(EXTRA_USERNAME) ?: "")
 

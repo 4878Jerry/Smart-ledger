@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 头部配饰：渔夫帽（暖橙黄） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 帽檐（宽扁椭圆） -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M38,66 A62,11 0 1,1 162,66 A62,11 0 1,1 38,66 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,66 A62,11 0 1,1 162,66 A62,11 0 1,1 38,66 Z"
+        android:strokeColor="#92400E"
+        android:strokeWidth="3" />
+
+    <!-- 帽顶（半圆，压住帽檐中段） -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M58,66 Q58,26 100,26 Q142,26 142,66 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M58,66 Q58,26 100,26 Q142,26 142,66 Z"
+        android:strokeColor="#92400E"
+        android:strokeWidth="3" />
+
+    <!-- 帽顶装饰线 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M66,60 Q100,38 134,60"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+</vector>

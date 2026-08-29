@@ -19,13 +19,12 @@
             android:layout_marginTop="48dp"
             android:background="@drawable/bg_mascot_circle">
 
-            <ImageView
+            <FrameLayout
                 android:id="@+id/img_mascot_login"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:contentDescription="@string/app_name"
-                android:padding="8dp"
-                android:src="@drawable/ic_mascot" />
+                android:padding="8dp" />
         </FrameLayout>
 
         <TextView

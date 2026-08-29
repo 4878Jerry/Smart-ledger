@@ -32,18 +32,12 @@
 
                 <!-- 小鸥大头像（白圆环底） -->
                 <FrameLayout
+                    android:id="@+id/img_mascot_profile"
                     android:layout_width="76dp"
                     android:layout_height="76dp"
-                    android:background="@drawable/bg_mascot_circle">
-
-                    <ImageView
-                        android:id="@+id/img_mascot_profile"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:contentDescription="@string/mascot_name"
-                        android:padding="6dp"
-                        android:src="@drawable/ic_mascot" />
-                </FrameLayout>
+                    android:background="@drawable/bg_mascot_circle"
+                    android:contentDescription="@string/mascot_name"
+                    android:padding="6dp" />
 
                 <LinearLayout
                     android:layout_width="0dp"

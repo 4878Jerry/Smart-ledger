@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认表情：圆眼 + 微笑 + 腮红 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 左腮红 -->
+    <path
+        android:fillColor="#FDBA74"
+        android:fillAlpha="0.55"
+        android:pathData="M56,104 A9,6 0 1,1 74,104 A9,6 0 1,1 56,104 Z" />
+
+    <!-- 右腮红 -->
+    <path
+        android:fillColor="#FDBA74"
+        android:fillAlpha="0.55"
+        android:pathData="M126,104 A9,6 0 1,1 144,104 A9,6 0 1,1 126,104 Z" />
+
+    <!-- 左眼 -->
+    <path
+        android:fillColor="#22303F"
+        android:pathData="M69,90 A10,10 0 1,1 89,90 A10,10 0 1,1 69,90 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,86 A4,4 0 1,1 80,86 A4,4 0 1,1 72,86 Z" />
+
+    <!-- 右眼 -->
+    <path
+        android:fillColor="#22303F"
+        android:pathData="M111,90 A10,10 0 1,1 131,90 A10,10 0 1,1 111,90 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M114,86 A4,4 0 1,1 122,86 A4,4 0 1,1 114,86 Z" />
+
+    <!-- 微笑 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M88,112 Q100,122 112,112"
+        android:strokeColor="#22303F"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+</vector>

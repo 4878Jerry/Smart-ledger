@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 提醒表情：> < 眼 + 汗滴 + 惊讶小嘴 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 汗滴 -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M146,52 C148,60 158,62 158,70 A9,9 0 0,1 140,70 C140,62 150,60 146,52 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.5"
+        android:pathData="M146,56 A3,3 0 1,1 152,56 A3,3 0 1,1 146,56 Z" />
+
+    <!-- 左 > < 眼 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M68,85 L82,91 L68,97"
+        android:strokeColor="#22303F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- 右 > < 眼 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M132,85 L118,91 L132,97"
+        android:strokeColor="#22303F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- 惊讶小嘴 -->
+    <path
+        android:fillColor="#22303F"
+        android:pathData="M94,112 A7,7 0 1,1 106,112 A7,7 0 1,1 94,112 Z" />
+
+    <!-- 双颊竖线（慌张） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M62,100 L58,104"
+        android:strokeColor="#F97316"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M138,100 L142,104"
+        android:strokeColor="#F97316"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+</vector>

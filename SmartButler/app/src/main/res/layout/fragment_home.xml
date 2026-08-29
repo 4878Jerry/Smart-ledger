@@ -50,14 +50,13 @@
                         android:textSize="11sp" />
                 </LinearLayout>
 
-                <ImageView
+                <FrameLayout
                     android:id="@+id/img_mascot_home"
                     android:layout_width="54dp"
                     android:layout_height="54dp"
                     android:background="@drawable/bg_mascot_circle"
                     android:contentDescription="@string/mascot_name"
-                    android:padding="4dp"
-                    android:src="@drawable/ic_mascot" />
+                    android:padding="4dp" />
             </LinearLayout>
 
             <!-- 三列数据：收入 / 支出 / 结余 -->
