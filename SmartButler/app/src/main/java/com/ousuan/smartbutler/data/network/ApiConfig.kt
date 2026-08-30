@@ -50,6 +50,24 @@ object ApiConfig {
         Log.d(TAG, "已恢复默认服务器地址: $DEFAULT_BASE_URL")
     }
 
+    // ===== 百度在线语音识别（在线模式，VoiceInputActivity 使用） =====
+    // 在百度智能云控制台「语音技术 → 创建应用」后获取（免费额度：标准版 15000 次/日）。
+    // 注意：官方 asr-sdk（com.baidu.aip:asr-sdk）托管在已关闭的 JCenter，无法从 Gradle 仓库拉取，
+    // 故采用短语音识别 REST API 等价实现（BaiduAsrManager）：GET access_token + POST 音频识别。
+    // 留空则语音页「在线模式」自动降级为 Vosk 离线识别，不影响原有功能。
+    object BaiduAsr {
+        const val APP_ID = ""          // 控制台应用 AppID（REST API 无需，保留字段）
+        const val API_KEY = "f75G6QbWavxvpghgS6zysZau"         // 控制台应用 API Key
+        const val SECRET_KEY = "NraFvvHtn2EcAM2GB920pnp29I0dZIi6"      // 控制台应用 Secret Key
+
+        /** 百度 OAuth2.0 access_token 获取地址（client_credentials） */
+        const val TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
+        /** 短语音识别标准版接口（原始音频 POST，16k/16bit/单声道 PCM） */
+        const val ASR_URL = "https://vop.baidu.com/server_api"
+        /** dev_pid：1537=普通话（支持简单英文） */
+        const val DEV_PID = "1537"
+    }
+
     // ===== API 端点 =====
     const val LOGIN = "api/login"
     const val REGISTER = "api/register"

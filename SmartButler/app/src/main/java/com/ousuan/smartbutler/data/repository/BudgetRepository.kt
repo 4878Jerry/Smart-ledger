@@ -7,14 +7,15 @@ import com.ousuan.smartbutler.data.BudgetEntity
 import com.ousuan.smartbutler.data.BudgetPrefs
 import com.ousuan.smartbutler.data.model.BudgetUpdateRequest
 import com.ousuan.smartbutler.data.network.ApiClient
-import com.ousuan.smartbutler.data.network.NetworkMonitor
 
 /**
  * 预算仓库：本地 Room 缓存（表 budgets）+ 服务器同步（users.budget_json）。
  *
- * - 保存：先写本地（立即生效），在线则 PUT 服务器，离线标记待同步；
+ * - 保存：先写本地（立即生效），再真实请求 PUT 服务器（局域网/Tailscale 会被
+ *   NetworkMonitor 误判离线，故不以 isConnected 短路，直接请求，失败才标记待同步）；
  * - 网络恢复：SyncManager 调用 [syncPending] 补推服务器；
- * - 登录后：downloadAllData 调用 [fetchFromServer] 拉取服务器预算覆盖本地（重装恢复）。
+ * - 登录后：downloadAllData 调用 [fetchFromServer] 拉取服务器预算调和到本地（重装恢复）；
+ *   本地存在「未上传的离线修改」（pending 标记）时以本地为准补推，绝不用旧服务器数据覆盖。
  *
  * 兼容旧版：写本地时同步写入 [BudgetPrefs]，保证预警页 / 社区发帖等旧读取点数据一致。
  */
@@ -68,17 +69,15 @@ class BudgetRepository(
 
     /**
      * 把当前用户预算推送到服务器（PUT /api/users/budget）。
+     * 注意：不依赖 [NetworkMonitor.isConnected] 做短路 —— 局域网/Tailscale 无外网验证会被
+     * 误判离线，若短路会导致本地预算永远推不上服务器，网络恢复时 fetchFromServer 又会用
+     * 服务器旧数据覆盖本地新修改。这里直接真实请求，失败才标记待同步。
      * @return 是否已成功同步到服务器
      */
     suspend fun pushToServer(userId: String, budget: Map<String, Double>): Boolean {
         if (userId.isBlank()) {
             Log.w(TAG, "pushToServer 跳过: 未登录（userId 为空），预算仅存本地")
             return false // 未登录只存本地，不同步
-        }
-        if (!NetworkMonitor.isConnected()) {
-            Log.w(TAG, "pushToServer 跳过: NetworkMonitor.isConnected()=false（局域网无外网也会判离线），预算标记待同步")
-            setPendingSync(userId, true)
-            return false
         }
         Log.d(TAG, "pushToServer 开始上传预算: userId=$userId 分类数=${budget.size}")
         val result = ApiClient.safeApiCall {
@@ -121,6 +120,18 @@ class BudgetRepository(
                 val serverBudget = resp.data.budget
                 val localBudget = getBudgetMap(userId)
                 Log.d(TAG, "服务器预算=${serverBudget.size} 个分类，本地 Room 预算=${localBudget.size} 个分类")
+                // 本地存在「未上传的离线修改」（push 失败标记的 pending）：以本地为准。
+                // 先补推本地（成功则服务器已与本地一致）；补推失败则保留本地，
+                // 绝不用旧服务器数据覆盖新本地修改（防止预算页刚改的方案被回滚）。
+                if (isPendingSync(userId) && localBudget.isNotEmpty()) {
+                    val pushed = pushToServer(userId, localBudget)
+                    if (!pushed) {
+                        Log.w(TAG, "fetchFromServer: 本地有待同步预算且补推失败，保留本地不覆盖（网络恢复后再补推）")
+                    } else {
+                        Log.d(TAG, "fetchFromServer: 本地待同步预算已补推成功，服务器与本地一致")
+                    }
+                    return true
+                }
                 if (serverBudget.isEmpty() && localBudget.isNotEmpty()) {
                     // 服务器无预算但本地有：保留本地并补传（未登录时设置的预算登录后不丢）
                     Log.d(TAG, "服务器无预算，保留本地 ${localBudget.size} 个分类并上传")

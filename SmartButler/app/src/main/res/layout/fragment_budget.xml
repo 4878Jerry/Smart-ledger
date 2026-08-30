@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
@@ -131,7 +132,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- 月生活费总额卡片（白色，顶部青绿色线条） -->
+        <!-- 周期 + 规模卡片（白色，顶部青绿色线条） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -148,30 +149,138 @@
                 android:layout_marginBottom="12dp"
                 android:background="@drawable/bg_strip_teal" />
 
+            <!-- 预算周期 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_factor_chip"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="3dp"
-                android:text="@string/budget_total"
-                android:textColor="#2D8CFF"
+                android:text="📅 预算周期"
+                android:textColor="#0E7490"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
-            <EditText
-                android:id="@+id/et_total"
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/tg_period"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
+                app:checkedButton="@id/btn_period_month"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_period_month"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:text="按月规划"
+                    android:textColor="@color/primary_dark"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_period_year"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:text="按年规划"
+                    android:textColor="@color/primary_dark"
+                    android:textSize="12sp" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <!-- 预算模式 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="🎯 预算模式"
+                android:textColor="#0E7490"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/tg_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                app:checkedButton="@id/btn_mode_recommend"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_mode_recommend"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:text="推荐（收入×比例）"
+                    android:textColor="@color/primary_dark"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_mode_custom"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:text="自定义总额"
+                    android:textColor="@color/primary_dark"
+                    android:textSize="12sp" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <!-- 推荐模式：收入输入 -->
+            <EditText
+                android:id="@+id/et_income"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:background="@drawable/bg_input_blue"
-                android:hint="@string/budget_total_hint"
+                android:hint="输入月收入（元）"
                 android:inputType="numberDecimal"
                 android:padding="12dp"
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_hint"
                 android:textSize="15sp"
                 android:textStyle="bold" />
+
+            <!-- 推荐总额实时预览 -->
+            <TextView
+                android:id="@+id/tv_recommend"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_factor_chip"
+                android:padding="8dp"
+                android:text="推荐预算：-- 元（收入 × 基准比例 × 综合地域系数）"
+                android:textColor="#0E7490"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <!-- 自定义模式：总额输入（默认隐藏，切到自定义时显示） -->
+            <EditText
+                android:id="@+id/et_custom_total"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_input_blue"
+                android:hint="输入月度总预算（元）"
+                android:inputType="numberDecimal"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_hint"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- 分类占比卡片（白色，顶部橙色线条） -->
@@ -202,11 +311,19 @@
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="拖动滑块自动补足（总和恒 100%），或点 − / + 微调 1%"
+                android:textColor="@color/text_hint"
+                android:textSize="11sp" />
+
             <LinearLayout
                 android:id="@+id/slider_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:orientation="vertical" />
         </LinearLayout>
 
@@ -248,6 +365,45 @@
                 android:textColor="@color/white"
                 android:textSize="14sp"
                 android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 软提醒卡片（白色，顶部橙色线条） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- 顶部装饰线：橙色 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="5dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_strip_orange" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="💡 软提醒"
+                android:textColor="#2D8CFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_reminder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:lineSpacingExtra="3dp"
+                android:text="生成预算后，这里会显示结构合理性提醒"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <!-- 结果：默认占位，由 BudgetFragment.showResult() 动态填充卡片 -->

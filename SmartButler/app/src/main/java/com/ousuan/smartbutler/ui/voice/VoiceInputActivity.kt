@@ -26,14 +26,21 @@ import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.util.DateUtils
 import com.ousuan.smartbutler.util.ParseUtils
 import com.ousuan.smartbutler.util.fmtMoney
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 /**
- * 语音记账（Vosk 离线方案，不依赖 Google 服务）：
- * AudioRecord 录制 16kHz/16bit/单声道 PCM → 实时送入 [VoskSpeechRecognizer] →
- * 识别文本实时显示 → 本地正则提取金额与分类（复用 ParseUtils，含同音字纠正）→
- * 联网时叠加百度 NLP 在线纠错（修正「一白领五」→「一百零五」类同音错字后重新提取，
- * 断网/接口失败自动回退本地结果，不影响离线流程）→ 预览可修改后保存。
+ * 语音记账（双模式：Vosk 离线 + 百度在线备选）：
+ * - 离线模式（默认，原行为）：AudioRecord 录制 16kHz/16bit/单声道 PCM → 实时送入
+ *   [VoskSpeechRecognizer] → 识别文本实时显示 → 本地正则提取金额与分类（复用 ParseUtils）。
+ * - 在线模式（开关开启，需在 ApiConfig.BaiduAsr 配置 Key）：录音累积 PCM → 停止后一次性
+ *   上传百度在线识别（BaiduAsrManager，REST 替代已下架 asr-sdk）→ 失败/无结果自动降级
+ *   同一段 PCM 喂 Vosk，不打断用户。
+ * - 两种模式识别文本统一走：本地解析（含同音字纠正）→ 联网时叠加百度 NLP 在线纠错
+ *   （修正「一白领五」→「一百零五」类同音错字后重新提取，断网/接口失败自动回退本地结果）→
+ *   预览可修改后保存。
  *
  * 防闪退要点（配合 Logcat 过滤 VoskDebug 定位）：
  * - onCreate/initVosk 全程 try-catch，模型加载失败只提示不崩溃
@@ -46,11 +53,17 @@ class VoiceInputActivity : AppCompatActivity() {
     private lateinit var binding: ActivityVoiceInputBinding
     private val repository by lazy { (application as SmartButlerApp).repository }
     private val vosk by lazy { VoskSpeechRecognizer(this) }
+    private val baiduAsr by lazy { BaiduAsrManager() }
+    private val modePrefs by lazy { getSharedPreferences("voice_mode", MODE_PRIVATE) }
 
     private var isRecording = false
     private var audioRecord: AudioRecord? = null
     private var recordingThread: Thread? = null
     private var lastFinalText: String? = null
+    /** 当前录音是否走百度在线模式（true 时 PCM 只累积不上送 Vosk） */
+    private var usingBaidu = false
+    /** 在线模式录音期间累积的 PCM（16k/16bit/单声道），停止后一次性上传百度 */
+    private var pcmBuffer: ByteArrayOutputStream? = null
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -86,6 +99,20 @@ class VoiceInputActivity : AppCompatActivity() {
                 }
             }
             binding.btnSave.setOnClickListener { save() }
+
+            // 识别模式开关：在线（百度优先，失败降级 Vosk）/ 离线（纯 Vosk），选择持久化，重启后保留
+            binding.swVoiceMode.isChecked = isOnlineMode()
+            binding.swVoiceMode.setOnCheckedChangeListener { _, checked ->
+                modePrefs.edit().putBoolean("online", checked).apply()
+                Log.d("VoiceDebug", "识别模式切换: ${if (checked) "在线（百度优先）" else "离线（Vosk）"} 百度已配置=${baiduAsr.isConfigured}")
+                if (checked && !baiduAsr.isConfigured) {
+                    Toast.makeText(
+                        this,
+                        "未配置百度 Key（ApiConfig.BaiduAsr.API_KEY/SECRET_KEY），在线识别将自动降级为离线",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
 
             // 模型加载不需要录音权限，进入页面即开始加载
             initVosk()
@@ -136,9 +163,9 @@ class VoiceInputActivity : AppCompatActivity() {
         }
     }
 
-    /** 入口：先查录音权限，再查模型是否就绪，最后开始录音 */
+    /** 入口：查录音权限 → 按模式分流（在线=百度优先，离线=Vosk），都失败自动降级 */
     private fun startVoiceInput() {
-        Log.e("VoskDebug", "startVoiceInput: 模型就绪=${vosk.isReady}")
+        Log.e("VoskDebug", "startVoiceInput: 模型就绪=${vosk.isReady} 在线模式=${isOnlineMode()} 百度已配置=${baiduAsr.isConfigured}")
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -146,17 +173,31 @@ class VoiceInputActivity : AppCompatActivity() {
             permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             return
         }
+        if (isOnlineMode() && baiduAsr.isConfigured) {
+            if (!NetworkMonitor.isConnected()) {
+                // 在线模式但无网络：不阻塞录音，直接降级 Vosk
+                Log.d("VoiceDebug", "在线模式但无网络，降级 Vosk 离线识别")
+                Toast.makeText(this, "无网络，已切换离线识别", Toast.LENGTH_SHORT).show()
+            } else {
+                startRecording(useBaidu = true)
+                return
+            }
+        }
         if (!vosk.isReady) {
             Log.e("VoskDebug", "模型尚未就绪，等待加载")
             binding.tvRecognized.text = "语音模型加载中，请稍候…"
             return
         }
-        startRecording()
+        startRecording(useBaidu = false)
     }
 
-    /** 初始化 AudioRecord（16000Hz / 16bit / 单声道），失败友好提示不崩溃 */
-    private fun startRecording() {
-        Log.e("VoskDebug", "startRecording: 采样率=16000, 编码=PCM_16BIT, 声道=MONO")
+    /**
+     * 初始化 AudioRecord（16000Hz / 16bit / 单声道），失败友好提示不崩溃。
+     * [useBaidu]=true 时录音数据只累积 PCM，停止后一次性上传百度在线识别（REST 无流式结果）；
+     * =false 时实时送入 Vosk 离线识别（原流程）。
+     */
+    private fun startRecording(useBaidu: Boolean = false) {
+        Log.e("VoskDebug", "startRecording: 采样率=16000, 编码=PCM_16BIT, 声道=MONO, 百度在线=$useBaidu")
         val bufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
@@ -188,11 +229,14 @@ class VoiceInputActivity : AppCompatActivity() {
             return
         }
         audioRecord = record
-        vosk.reset()
+        usingBaidu = useBaidu
+        pcmBuffer = if (useBaidu) ByteArrayOutputStream() else null
+        if (!useBaidu) vosk.reset()
         lastFinalText = null
         isRecording = true
         binding.btnListen.text = "停止录音"
-        binding.tvRecognized.text = "正在聆听，请说话…"
+        binding.tvRecognized.text =
+            if (useBaidu) "正在聆听（在线识别，停止后出结果）…" else "正在聆听，请说话…"
         try {
             record.startRecording()
             Log.e("VoskDebug", "录音已开始")
@@ -214,17 +258,22 @@ class VoiceInputActivity : AppCompatActivity() {
                     // 16bit 采样：确保送入 Vosk 的字节数为偶数
                     val valid = read - (read % 2)
                     if (valid <= 0) continue
-                    // 实时送入 Vosk：一句话结束返回最终文本，否则取部分结果实时显示
-                    val finalText = vosk.startListening(buffer.copyOf(valid))
-                    if (finalText != null) {
-                        lastFinalText = finalText
-                        Log.e("VoskDebug", "识别到完整结果: $finalText")
-                        runOnUiThread { binding.tvRecognized.text = finalText }
+                    if (usingBaidu) {
+                        // 在线模式：累积 PCM，停止后一次性上传百度识别
+                        pcmBuffer?.write(buffer, 0, valid)
                     } else {
-                        val partial = vosk.getPartialText()
-                        if (partial.isNotEmpty()) {
-                            Log.e("VoskDebug", "部分识别结果: $partial")
-                            runOnUiThread { binding.tvRecognized.text = partial }
+                        // 实时送入 Vosk：一句话结束返回最终文本，否则取部分结果实时显示
+                        val finalText = vosk.startListening(buffer.copyOf(valid))
+                        if (finalText != null) {
+                            lastFinalText = finalText
+                            Log.e("VoskDebug", "识别到完整结果: $finalText")
+                            runOnUiThread { binding.tvRecognized.text = finalText }
+                        } else {
+                            val partial = vosk.getPartialText()
+                            if (partial.isNotEmpty()) {
+                                Log.e("VoskDebug", "部分识别结果: $partial")
+                                runOnUiThread { binding.tvRecognized.text = partial }
+                            }
                         }
                     }
                 }
@@ -244,7 +293,7 @@ class VoiceInputActivity : AppCompatActivity() {
     }
 
     private fun stopRecording() {
-        Log.e("VoskDebug", "stopRecording: 停止录音")
+        Log.e("VoskDebug", "stopRecording: 停止录音, 百度在线=$usingBaidu")
         isRecording = false
         recordingThread?.join(1000)
         val record = audioRecord
@@ -257,6 +306,14 @@ class VoiceInputActivity : AppCompatActivity() {
         recordingThread = null
         binding.btnListen.text = "开始录音"
         Log.e("VoskDebug", "录音已停止，取回最终结果")
+
+        if (usingBaidu) {
+            usingBaidu = false
+            val pcm = pcmBuffer?.toByteArray()
+            pcmBuffer = null
+            finalizeBaiduOnline(pcm)
+            return
+        }
 
         // 取未消费的最终结果（优先 flush 结果，其次一句话结束时的结果）
         val flushed = vosk.getFinalText()
@@ -273,6 +330,66 @@ class VoiceInputActivity : AppCompatActivity() {
             binding.tvRecognized.text = "未识别到有效内容，请手动输入"
         }
     }
+
+    /**
+     * 在线模式收尾：把录音 PCM 上传百度在线识别；失败/无结果自动降级——
+     * 将同一段 PCM 喂给 Vosk 离线识别（不打断用户、无需重新录音）。
+     * 识别成功后与离线路径一致：本地解析 + 百度 NLP 纠错。
+     */
+    private fun finalizeBaiduOnline(pcm: ByteArray?) {
+        if (pcm == null || pcm.isEmpty()) {
+            Log.e("VoskDebug", "在线模式无录音数据")
+            binding.tvRecognized.text = "未识别到有效内容，请手动输入"
+            return
+        }
+        binding.tvRecognized.text = "正在识别（在线）…"
+        lifecycleScope.launch {
+            var text = if (baiduAsr.isConfigured) baiduAsr.recognize(pcm) else null
+            if (text.isNullOrBlank()) {
+                Log.e("VoskDebug", "百度在线识别失败/无结果，降级 Vosk 识别同段音频")
+                text = withContext(Dispatchers.IO) { voskRecognizeOnce(pcm) }
+                if (text.isNullOrBlank()) {
+                    if (isActive()) binding.tvRecognized.text = "未识别到有效内容，请手动输入"
+                    return@launch
+                }
+            }
+            if (!isActive()) return@launch
+            Log.e("VoskDebug", "在线识别结果: $text")
+            binding.tvRecognized.text = text
+            // 与离线路径一致的解析链：本地即时解析 → 联网叠加百度 NLP 纠错
+            fillPreview(text)
+            refillWithBaiduCorrection(text)
+        }
+    }
+
+    /** 把一段 PCM 一次性喂给 Vosk（百度降级路径），返回拼接识别文本；失败返回 null */
+    private fun voskRecognizeOnce(pcm: ByteArray): String? {
+        if (!vosk.isReady) {
+            Log.e("VoskDebug", "Vosk 模型未就绪，无法降级识别")
+            return null
+        }
+        return try {
+            vosk.reset()
+            val parts = mutableListOf<String>()
+            var offset = 0
+            val chunk = 8000
+            while (offset < pcm.size) {
+                val len = minOf(chunk, pcm.size - offset)
+                vosk.startListening(pcm.copyOfRange(offset, offset + len))?.let { parts.add(it) }
+                offset += len
+            }
+            val tail = vosk.getFinalText()
+            if (tail.isNotEmpty()) parts.add(tail)
+            vosk.reset()
+            parts.joinToString("").ifEmpty { null }
+        } catch (t: Throwable) {
+            Log.e("VoskDebug", "Vosk 降级识别异常: ${t.javaClass.name}: ${t.message}", t)
+            null
+        }
+    }
+
+    /** 识别模式开关状态（SharedPreferences 持久化，默认离线=原行为） */
+    private fun isOnlineMode(): Boolean = modePrefs.getBoolean("online", false)
 
     /**
      * 解析识别文本，自动填入预览控件：

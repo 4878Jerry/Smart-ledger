@@ -19,8 +19,14 @@ object Categories {
         "工资", "奖金", "兼职", "理财", "红包", "报销", "其他"
     )
 
-    /** 预算滑块分类（6 个，对应 BudgetActivity） */
-    val BUDGET = listOf("餐饮", "交通", "购物", "娱乐", "学习", "储蓄")
+    /**
+     * 预算滑块分类（11 个支出分类，对应 C++ budget_planner.cpp；
+     * 顺序与默认占比表 kDefaultRatios 一致，居住 = 索引 1）。
+     */
+    val BUDGET = listOf(
+        "餐饮", "居住", "交通", "购物", "娱乐", "医疗", "教育",
+        "通讯", "社交人情", "旅行", "其他"
+    )
 
     /** 分类 → 颜色（取自 C++ 颜色表） */
     private val COLORS = mapOf(
