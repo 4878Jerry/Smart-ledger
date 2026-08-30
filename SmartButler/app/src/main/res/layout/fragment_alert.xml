@@ -11,11 +11,70 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- 日 / 月 / 年 视图切换 -->
+        <!-- 小鸥提醒横幅：青绿渐变 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <FrameLayout
+                android:id="@+id/img_mascot_alert"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_mascot_circle"
+                android:contentDescription="@string/mascot_name"
+                android:padding="3dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_mascot_say"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="小鸥帮你盯紧钱包"
+                    android:textColor="@color/primary_dark"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_mascot_say_sub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="设置月度预算，消费更安心"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- "预警"角标（暖色 chip 装饰） -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="🔔 预警"
+                android:textColor="#0E7490"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 日 / 月 / 年 视图切换（chip 风格） -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/toggle_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:checkedButton="@id/btn_month"
             app:selectionRequired="true"
             app:singleSelection="true">
 
@@ -26,7 +85,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/view_day"
-                android:textColor="@color/primary" />
+                android:textColor="@color/primary_dark" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_month"
@@ -35,7 +94,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/view_month"
-                android:textColor="@color/primary" />
+                android:textColor="@color/primary_dark" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_year"
@@ -44,10 +103,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/view_year"
-                android:textColor="@color/primary" />
+                android:textColor="@color/primary_dark" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <!-- 时间导航 -->
+        <!-- 时间导航：圆形 ◀ ▶ 按钮 + 中间日期 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -55,52 +114,69 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Button
+            <TextView
                 android:id="@+id/btn_prev"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:minWidth="0dp"
-                android:text="◀" />
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_btn_circle_white"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="◀"
+                android:textColor="#2D8CFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tv_range"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="12dp"
                 android:layout_weight="1"
+                android:background="@drawable/bg_summary_blue"
                 android:gravity="center"
-                android:textColor="@color/primary"
-                android:textSize="16sp"
+                android:paddingVertical="10dp"
+                android:textColor="#0E7490"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_next"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:minWidth="0dp"
-                android:text="▶" />
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_btn_circle_blue"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="▶"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- 汇总 -->
+        <!-- 汇总：浅蓝背景 -->
         <TextView
             android:id="@+id/tv_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:background="@color/card_bg"
+            android:background="@drawable/bg_summary_blue"
+            android:lineSpacingExtra="3dp"
             android:padding="14dp"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
+            android:textColor="#0E7490"
+            android:textSize="13sp" />
 
-        <!-- 余额预警（红色） -->
+        <!-- 余额预警：橙色边框 -->
         <TextView
             android:id="@+id/tv_balance_warn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@color/warn_bg"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_warn_outline"
+            android:lineSpacingExtra="3dp"
             android:padding="14dp"
             android:textColor="@color/warn_text"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:visibility="gone" />
 
@@ -108,18 +184,22 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/bg_factor_chip"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="3dp"
             android:text="@string/alert_category_title"
-            android:textColor="@color/primary"
-            android:textSize="16sp"
+            android:textColor="#2D8CFF"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:id="@+id/cat_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:background="@color/card_bg"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
             android:orientation="vertical"
             android:padding="14dp" />
 
@@ -127,18 +207,22 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_factor_chip"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="3dp"
             android:text="@string/alert_if_title"
-            android:textColor="@color/primary"
-            android:textSize="16sp"
+            android:textColor="#2D8CFF"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:id="@+id/if_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:background="@color/card_bg"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
             android:orientation="vertical"
             android:padding="14dp" />
     </LinearLayout>

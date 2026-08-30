@@ -16,7 +16,7 @@ object ApiConfig {
     private const val TAG = "ApiConfig"
 
     /** 默认服务器地址（未在「服务器设置」中修改时使用） */
-    const val DEFAULT_BASE_URL = "http://10.126.126.1:8000/"
+    const val DEFAULT_BASE_URL = "http://10.21.22.205:8000/"
 
     @Volatile
     private var prefs: SharedPreferences? = null

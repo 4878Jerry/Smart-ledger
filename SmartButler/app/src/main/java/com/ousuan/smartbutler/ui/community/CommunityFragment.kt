@@ -7,8 +7,10 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.ousuan.smartbutler.R
@@ -18,6 +20,7 @@ import com.ousuan.smartbutler.data.DataPublicPrefs
 import com.ousuan.smartbutler.data.network.NetworkMonitor
 import com.ousuan.smartbutler.data.repository.CommunityRepository
 import com.ousuan.smartbutler.databinding.FragmentCommunityBinding
+import com.ousuan.smartbutler.util.MascotManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -71,6 +74,8 @@ class CommunityFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // 空状态小鸥：分层渲染当前形象
+        MascotManager.applyLookTo(binding.imgMascotCommunity)
         adapter = CommunityAdapter(
             onLike = { postId -> like(postId) },
             onToggleExpand = { postId -> toggleExpand(postId) },
@@ -79,6 +84,8 @@ class CommunityFragment : Fragment() {
         binding.rvPosts.layoutManager = LinearLayoutManager(requireContext())
         binding.rvPosts.adapter = adapter
         binding.btnPublish.setOnClickListener { publish() }
+        // 顶部 tab chips：纯视觉占位（关注/同城/话题敬请期待）；推荐为默认
+        setupCommunityTabs()
         // 模块可见度行跟随「包含…」复选框显隐（仅在勾选时展示对应可见度选项）
         binding.cbIncludeData.setOnCheckedChangeListener { _, checked ->
             binding.llDataVisibilityRow.visibility = if (checked) View.VISIBLE else View.GONE
@@ -195,18 +202,27 @@ class CommunityFragment : Fragment() {
     }
 
     private fun like(postId: String) {
+        // 1. 乐观更新：先在 UI 端 toggle 点赞状态（后端接口就是 toggle，
+        //    已点赞 → 取消；未点赞 → 点赞），立刻重绘单条以反映颜色变化
+        val wasLiked = adapter.likedIds.contains(postId)
+        if (wasLiked) adapter.likedIds.remove(postId) else adapter.likedIds.add(postId)
+        adapter.notifyItemChangedByPostId(postId)
+
         viewLifecycleOwner.lifecycleScope.launch {
             CommunityRepository.likePost(postId)
                 .onSuccess { likes ->
-                    adapter.likedIds.add(postId)
-                    // 只更新单条帖子的点赞数，避免整表重排导致列表跳位
+                    // 服务器返回最新 likes 数，单独更新这一条（不重排列表）
                     if (!adapter.updateLikes(postId, likes)) {
                         Log.d(TAG, "点赞后找不到帖子 $postId，触发全量刷新")
                         refresh()
                     }
                 }
                 .onFailure { e ->
-                    Toast.makeText(requireContext(), e.message ?: "点赞失败", Toast.LENGTH_SHORT).show()
+                    // 失败回滚：把 UI 状态改回原值并重绘
+                    if (wasLiked) adapter.likedIds.add(postId)
+                    else adapter.likedIds.remove(postId)
+                    adapter.notifyItemChangedByPostId(postId)
+                    Toast.makeText(requireContext(), e.message ?: "操作失败", Toast.LENGTH_SHORT).show()
                 }
         }
     }
@@ -319,6 +335,41 @@ class CommunityFragment : Fragment() {
         // 取消注册监听，避免内存泄漏
         dataPrefs.unregisterOnSharedPreferenceChangeListener(publicPrefsListener)
         _binding = null
+    }
+
+    /**
+     * 顶部 tab chips 切换：纯视觉占位（当前仅推荐展示真实数据，其他 tab 敬请期待）。
+     * 通过切换 drawable + 文本颜色模拟 chip 选中态。
+     */
+    private fun setupCommunityTabs() {
+        val chips = listOf(
+            binding.chipRecommend,
+            binding.chipFollowing,
+            binding.chipSameCity,
+            binding.chipTopic
+        )
+        chips.forEach { chip ->
+            chip.setOnClickListener {
+                chips.forEach { updateChipState(it, it == chip) }
+                if (chip != binding.chipRecommend) {
+                    Toast.makeText(requireContext(), R.string.community_coming_soon, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun updateChipState(chip: TextView, selected: Boolean) {
+        chip.background = ContextCompat.getDrawable(
+            requireContext(),
+            if (selected) R.drawable.bg_chip_selected else R.drawable.bg_chip_unselected
+        )
+        chip.setTextColor(
+            ContextCompat.getColor(
+                requireContext(),
+                if (selected) R.color.white else R.color.text_secondary
+            )
+        )
+        chip.setTypeface(chip.typeface, if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
     }
 
     companion object {

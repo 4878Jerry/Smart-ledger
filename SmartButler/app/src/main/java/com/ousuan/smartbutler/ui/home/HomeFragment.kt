@@ -14,10 +14,12 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.FragmentHomeBinding
+import com.ousuan.smartbutler.model.MascotLook
 import com.ousuan.smartbutler.ui.ocr.OcrInputActivity
 import com.ousuan.smartbutler.ui.voice.VoiceInputActivity
 import com.ousuan.smartbutler.util.DateUtils
 import com.ousuan.smartbutler.util.ExpenseAnalyzer
+import com.ousuan.smartbutler.util.MascotManager
 import com.ousuan.smartbutler.util.fmtMoney
 import kotlinx.coroutines.launch
 
@@ -59,6 +61,11 @@ class HomeFragment : Fragment() {
         }.attach()
 
         binding.fabAdd.setOnClickListener { showAddMenu(it) }
+
+        // 首页小鸥头像：分层渲染，跟随全局换装，随页面销毁自动注销监听
+        MascotManager.observe(mascotListener)
+        MascotManager.applyLookTo(binding.imgMascotHome)
+
         observeSummary()
     }
 
@@ -88,7 +95,7 @@ class HomeFragment : Fragment() {
         }
     }
 
-    /** 统计卡：本月概览 + 人格画像 + AI 建议 */
+    /** 统计卡：本月概览（人格 / AI 建议已迁到「统计分析」页） */
     private fun observeSummary() {
         viewLifecycleOwner.lifecycleScope.launch {
             repository.allTransactions.collect { records ->
@@ -98,14 +105,18 @@ class HomeFragment : Fragment() {
                 binding.tvIncome.text = fmtMoney(s.income)
                 binding.tvExpense.text = fmtMoney(s.expense)
                 binding.tvBalance.text = fmtMoney(s.balance)
-                binding.tvPersonality.text = "消费人格：${ExpenseAnalyzer.personalityTag(records)}"
-                binding.tvAdvice.text = "AI 建议：${ExpenseAnalyzer.aiAdvice(records)}"
             }
         }
     }
 
     override fun onDestroyView() {
+        MascotManager.removeObserver(mascotListener)
         super.onDestroyView()
         _binding = null
+    }
+
+    /** 小鸥换装监听（随页面销毁注销） */
+    private val mascotListener: (MascotLook) -> Unit = { look ->
+        _binding?.imgMascotHome?.let { MascotManager.applyLookTo(it, look) }
     }
 }

@@ -8,129 +8,254 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/budget_title"
-            android:textColor="@color/primary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/budget_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
-
-        <!-- 省份 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/budget_province"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-
-        <Spinner
-            android:id="@+id/sp_province"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@color/card_bg"
-            android:spinnerMode="dropdown" />
-
-        <!-- 城市等级 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/budget_city"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-
-        <Spinner
-            android:id="@+id/sp_city"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@color/card_bg"
-            android:spinnerMode="dropdown" />
-
-        <TextView
-            android:id="@+id/tv_factor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="@color/accent"
-            android:textSize="13sp" />
-
-        <!-- 月生活费总额 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/budget_total"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-
-        <EditText
-            android:id="@+id/et_total"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/card_bg"
-            android:hint="@string/budget_total_hint"
-            android:inputType="numberDecimal"
-            android:padding="12dp"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-
-        <!-- 分类占比滑块 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/budget_slider_title"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-
-        <LinearLayout
-            android:id="@+id/slider_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
+        <!-- 顶部：标题 + 副标题 + 头像（与统计/社区页一致） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Button
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/budget_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/budget_subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_avatar_circle">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="@string/stats_avatar_letter"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 地域选择卡片（白色，顶部蓝色线条） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- 顶部装饰线：蓝色 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="5dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_strip_blue" />
+
+            <!-- 省份 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="@string/budget_province"
+                android:textColor="#2D8CFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Spinner
+                android:id="@+id/sp_province"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_input_gray"
+                android:paddingHorizontal="12dp"
+                android:spinnerMode="dropdown" />
+
+            <!-- 城市等级 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="@string/budget_city"
+                android:textColor="#2D8CFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Spinner
+                android:id="@+id/sp_city"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_input_gray"
+                android:paddingHorizontal="12dp"
+                android:spinnerMode="dropdown" />
+
+            <!-- 综合地域系数：青绿色 chip -->
+            <TextView
+                android:id="@+id/tv_factor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_factor_chip"
+                android:padding="10dp"
+                android:textColor="#0E7490"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 月生活费总额卡片（白色，顶部青绿色线条） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- 顶部装饰线：青绿 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="5dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_strip_teal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="@string/budget_total"
+                android:textColor="#2D8CFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/et_total"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_input_blue"
+                android:hint="@string/budget_total_hint"
+                android:inputType="numberDecimal"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_hint"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 分类占比卡片（白色，顶部橙色线条） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:elevation="2dp"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- 顶部装饰线：橙色 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="5dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_strip_orange" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_factor_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="@string/budget_slider_title"
+                android:textColor="#2D8CFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/slider_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <!-- 操作行：默认占比（蓝色边框 chip）+ 生成预算（绿色填充主按钮） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <TextView
                 android:id="@+id/btn_default"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:text="@string/budget_default" />
+                android:background="@drawable/bg_button_blue_outline"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingVertical="12dp"
+                android:text="@string/budget_default"
+                android:textColor="#2D8CFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_generate"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:text="@string/budget_generate" />
+                android:background="@drawable/bg_button_primary"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingVertical="12dp"
+                android:text="@string/budget_generate"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- 结果 -->
+        <!-- 结果：默认占位，由 BudgetFragment.showResult() 动态填充卡片 -->
         <LinearLayout
             android:id="@+id/result_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@color/card_bg"
-            android:orientation="vertical"
-            android:padding="16dp" />
+            android:layout_marginTop="12dp"
+            android:orientation="vertical" />
     </LinearLayout>
 </ScrollView>

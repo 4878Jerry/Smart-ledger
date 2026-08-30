@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小鸥身体基础层：圆润海鸥团子（白身 + 灰翅 + 橙嘴 + 橙脚） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 左翅膀 -->
+    <path
+        android:fillColor="#9CA3AF"
+        android:pathData="M34,84 A15,20 0 1,1 34,120 A15,20 0 1,1 34,84 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M34,84 A15,20 0 1,1 34,120 A15,20 0 1,1 34,84 Z"
+        android:strokeColor="#3E4C59"
+        android:strokeWidth="3" />
+
+    <!-- 右翅膀 -->
+    <path
+        android:fillColor="#9CA3AF"
+        android:pathData="M166,84 A15,20 0 1,1 166,120 A15,20 0 1,1 166,84 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M166,84 A15,20 0 1,1 166,120 A15,20 0 1,1 166,84 Z"
+        android:strokeColor="#3E4C59"
+        android:strokeWidth="3" />
+
+    <!-- 左脚 -->
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M67,160 A11,6 0 1,1 89,160 A11,6 0 1,1 67,160 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M67,160 A11,6 0 1,1 89,160 A11,6 0 1,1 67,160 Z"
+        android:strokeColor="#3E4C59"
+        android:strokeWidth="3" />
+
+    <!-- 右脚 -->
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M111,160 A11,6 0 1,1 133,160 A11,6 0 1,1 111,160 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M111,160 A11,6 0 1,1 133,160 A11,6 0 1,1 111,160 Z"
+        android:strokeColor="#3E4C59"
+        android:strokeWidth="3" />
+
+    <!-- 身体（大圆） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,102 A62,62 0 1,1 162,102 A62,62 0 1,1 38,102 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,102 A62,62 0 1,1 162,102 A62,62 0 1,1 38,102 Z"
+        android:strokeColor="#3E4C59"
+        android:strokeWidth="3.5" />
+
+    <!-- 肚皮浅色块（增强立体感） -->
+    <path
+        android:fillColor="#F1F5F9"
+        android:pathData="M70,120 A36,30 0 1,1 130,120 A36,30 0 1,1 70,120 Z" />
+
+    <!-- 注：身体层不绘制嘴巴，嘴由表情层提供，避免切换表情时出现「双嘴」 -->
+</vector>

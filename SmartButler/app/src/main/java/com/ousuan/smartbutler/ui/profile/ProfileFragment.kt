@@ -17,9 +17,12 @@ import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.data.DataPublicPrefs
 import com.ousuan.smartbutler.data.repository.CommunityRepository
 import com.ousuan.smartbutler.databinding.FragmentProfileBinding
+import com.ousuan.smartbutler.model.MascotLook
 import com.ousuan.smartbutler.ui.auth.LoginActivity
 import com.ousuan.smartbutler.ui.community.MyPostsActivity
+import com.ousuan.smartbutler.ui.mascot.MascotDressRoomDialog
 import com.ousuan.smartbutler.ui.settings.SettingsActivity
+import com.ousuan.smartbutler.util.MascotManager
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
@@ -45,6 +48,13 @@ class ProfileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.tvMascotName.text = getString(R.string.mascot_name)
+
+        // 小鸥大头像：分层渲染，跟随全局换装
+        MascotManager.observe(mascotListener)
+        MascotManager.applyLookTo(binding.imgMascotProfile)
+
+        // 小鸥换装入口 → 全新分层换装弹窗
+        binding.llDressUp.setOnClickListener { MascotDressRoomDialog().show(requireContext()) }
 
         // 当前登录用户
         refreshUserInfo()
@@ -222,7 +232,13 @@ class ProfileFragment : Fragment() {
         requireActivity().finish()
     }
 
+    /** 小鸥换装监听（随页面销毁注销） */
+    private val mascotListener: (MascotLook) -> Unit = { look ->
+        _binding?.imgMascotProfile?.let { MascotManager.applyLookTo(it, look) }
+    }
+
     override fun onDestroyView() {
+        MascotManager.removeObserver(mascotListener)
         super.onDestroyView()
         _binding = null
     }

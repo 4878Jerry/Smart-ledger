@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 头部配饰：青绿耳机 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 左耳罩 -->
+    <path
+        android:fillColor="#14B8A6"
+        android:pathData="M26,88 A12,16 0 1,1 50,88 A12,16 0 1,1 26,88 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M26,88 A12,16 0 1,1 50,88 A12,16 0 1,1 26,88 Z"
+        android:strokeColor="#0E9488"
+        android:strokeWidth="3" />
+    <path
+        android:fillColor="#0F766E"
+        android:pathData="M31,88 A7,7 0 1,1 45,88 A7,7 0 1,1 31,88 Z" />
+
+    <!-- 右耳罩 -->
+    <path
+        android:fillColor="#14B8A6"
+        android:pathData="M150,88 A12,16 0 1,1 174,88 A12,16 0 1,1 150,88 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M150,88 A12,16 0 1,1 174,88 A12,16 0 1,1 150,88 Z"
+        android:strokeColor="#0E9488"
+        android:strokeWidth="3" />
+    <path
+        android:fillColor="#0F766E"
+        android:pathData="M155,88 A7,7 0 1,1 169,88 A7,7 0 1,1 155,88 Z" />
+
+    <!-- 头梁（弧形带） -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M32,84 Q100,-2 168,84"
+        android:strokeColor="#14B8A6"
+        android:strokeWidth="8"
+        android:strokeLineCap="round" />
+</vector>

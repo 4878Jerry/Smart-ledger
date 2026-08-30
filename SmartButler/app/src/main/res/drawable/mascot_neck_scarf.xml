@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 颈部配饰：红围巾 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 环绕颈部的红带 -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M58,134 Q100,148 142,134 L142,141 Q100,156 58,141 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M58,134 Q100,148 142,134 L142,141 Q100,156 58,141 Z"
+        android:strokeColor="#991B1B"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+
+    <!-- 左垂带 -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M66,140 L66,166 Q76,170 84,162 L82,138 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M66,140 L66,166 Q76,170 84,162 L82,138 Z"
+        android:strokeColor="#991B1B"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+
+    <!-- 右垂带 -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M118,140 L118,166 Q126,170 134,162 L132,138 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M118,140 L118,166 Q126,170 134,162 L132,138 Z"
+        android:strokeColor="#991B1B"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round" />
+</vector>

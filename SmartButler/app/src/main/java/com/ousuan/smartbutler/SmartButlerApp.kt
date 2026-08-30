@@ -13,6 +13,7 @@ import com.ousuan.smartbutler.data.repository.BudgetRepository
 import com.ousuan.smartbutler.data.repository.CommunityRepository
 import com.ousuan.smartbutler.data.repository.UserRepository
 import com.ousuan.smartbutler.data.sync.SyncManager
+import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,8 +24,10 @@ class SmartButlerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // 强制深色模式，保证界面在任意系统主题下均为深色可读
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        // 强制浅色模式：品牌为清新浅色系（海鸥青绿），保证界面在任意系统主题下一致可读
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+        // 吉祥物「小鸥」管理器初始化（形象持久化与换装）
+        MascotManager.init(this)
         // 统一 token 管理器初始化（AuthInterceptor / 登录 / 登出共用同一 key）
         TokenManager.init(this)
         // 服务器地址配置初始化（读取用户保存的地址，未设置则用默认值）

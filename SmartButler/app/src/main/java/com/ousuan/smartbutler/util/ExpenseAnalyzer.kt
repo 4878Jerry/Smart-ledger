@@ -61,7 +61,7 @@ object ExpenseAnalyzer {
         val total = cats.values.sum()
         if (total <= 0) return "暂无支出数据，记下第一笔支出后我会给出建议"
         val top = cats.maxByOrNull { it.value }?.key ?: return ""
-        val topRatio = cats[top] ?: 0.0 / total
+        val topRatio = if (total > 0) (cats[top] ?: 0.0) / total else 0.0
         val rate = if (s.income > 0) s.balance / s.income else null
         return when {
             s.balance < 0 -> "本月入不敷出，支出超过收入，建议暂停非必要消费并盘点固定开销"

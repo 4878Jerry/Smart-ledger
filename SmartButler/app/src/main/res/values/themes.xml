@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 深色主题：强制深色模式（配合 Application 中 MODE_NIGHT_YES） -->
-    <style name="Theme.SmartButler" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- 浅色主题：清新海鸥青绿（配合 Application 中 MODE_NIGHT_NO） -->
+    <style name="Theme.SmartButler" parent="Theme.MaterialComponents.Light.NoActionBar">
         <!-- Material 语义色 -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
-        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/accent</item>
         <item name="colorSecondaryVariant">@color/accent</item>
-        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorOnSecondary">@color/white</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="colorOnSurfaceVariant">@color/text_secondary</item>
-        <item name="colorOutline">@color/text_secondary</item>
+        <item name="colorOutline">@color/divider</item>
         <item name="colorError">@color/expense</item>
-        <item name="colorOnError">@color/black</item>
+        <item name="colorOnError">@color/white</item>
 
-        <!-- 全局文字颜色：强制浅色 -->
+        <!-- 全局文字颜色 -->
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
@@ -24,16 +24,19 @@
         <item name="android:editTextColor">@color/text_primary</item>
 
         <!-- 窗口 -->
-        <item name="android:forceDarkAllowed">true</item>
         <item name="android:windowBackground">@color/background</item>
-        <item name="android:statusBarColor">@color/background</item>
-        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:statusBarColor">@color/brand_gradient_start</item>
+        <item name="android:navigationBarColor">@color/white</item>
 
         <!-- 底部导航配色 -->
         <item name="bottomNavigationStyle">@style/Widget.App.BottomNavigationView</item>
+
+        <!-- Material 组件主题色：按钮 / Tab / 输入框统一 -->
+        <item name="colorControlActivated">@color/primary</item>
+        <item name="colorAccent">@color/primary</item>
     </style>
 
-    <!-- 底部导航：选中 accent / 未选中灰色，图标与文字统一 -->
+    <!-- 底部导航：选中品牌青绿 / 未选中灰色 -->
     <style name="Widget.App.BottomNavigationView" parent="Widget.MaterialComponents.BottomNavigationView">
         <item name="itemIconTint">@color/bottom_nav_item</item>
         <item name="itemTextColor">@color/bottom_nav_item</item>

@@ -15,6 +15,7 @@ import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.data.Transaction
 import com.ousuan.smartbutler.data.TransactionRepository
+import com.ousuan.smartbutler.ui.mascot.MascotOverlayManager
 import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.util.DateUtils
 import kotlinx.coroutines.launch
@@ -84,7 +85,9 @@ class AddTransactionDialog {
                 try {
                     // userId 由 Repository 自动填入当前登录用户
                     repository.insert(transaction)
-                    Toast.makeText(context, "已保存记录", Toast.LENGTH_SHORT).show()
+                    // 小鸥开心闪显（不改变用户当前换装选择）
+                    MascotOverlayManager.flashEmotion("face_happy")
+                    Toast.makeText(context, "已保存记录，小鸥给你点赞~", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     Toast.makeText(context, e.message ?: "保存失败", Toast.LENGTH_SHORT).show()
                 }

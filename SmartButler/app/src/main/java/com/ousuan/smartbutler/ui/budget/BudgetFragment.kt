@@ -1,6 +1,8 @@
 package com.ousuan.smartbutler.ui.budget
 
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -85,7 +87,7 @@ class BudgetFragment : Fragment() {
         override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
     }
 
-    /** 动态构建 6 个分类滑块 */
+    /** 动态构建 6 个分类滑块（分类色点 + 彩色标签 + 彩色进度条） */
     private fun buildSliders() {
         budgetCategories.forEachIndexed { i, name ->
             val row = LinearLayout(requireContext()).apply {
@@ -93,15 +95,39 @@ class BudgetFragment : Fragment() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(6), 0, dp(6))
             }
+            // 分类色点 + 彩色标签
+            val labelWrap = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(dp(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+            val dot = View(requireContext()).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Categories.color(name))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(9), dp(9))
+            }
             val label = TextView(requireContext()).apply {
                 text = name
-                textSize = 14f
+                textSize = 13f
+                setTextColor(Categories.color(name))
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dp(6) }
             }
-            row.addView(label, LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT))
+            labelWrap.addView(dot)
+            labelWrap.addView(label)
+            row.addView(labelWrap)
 
+            // 滑块：进度条与滑块小圆点都使用分类色
             val seekBar = SeekBar(requireContext()).apply {
                 max = 100
                 progress = defaultWeights[i]
+                progressTintList = ColorStateList.valueOf(Categories.color(name))
+                thumbTintList = ColorStateList.valueOf(Categories.color(name))
             }
             row.addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
@@ -109,6 +135,8 @@ class BudgetFragment : Fragment() {
                 text = "${defaultWeights[i]}%"
                 textSize = 13f
                 gravity = Gravity.END
+                setTextColor(Categories.color(name))
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
             row.addView(pct, LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -169,26 +197,108 @@ class BudgetFragment : Fragment() {
 
     /** 在结果区域展示预算方案（生成后 / 打开页面加载已保存方案共用） */
     private fun showResult(total: Double, catMap: Map<String, Double>) {
-        val sb = StringBuilder()
-        sb.append("预算方案（月生活费 ").append(fmtMoney(total)).append(" 元）\n\n")
+        val ctx = requireContext()
+        binding.resultContainer.removeAllViews()
+
+        // 外层卡片
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_card)
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+        }
+
+        // 标题行：总额 chip + 提示
+        val headerRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = TextView(ctx).apply {
+            text = "📊 预算方案"
+            textSize = 14f
+            setTextColor(ctx.getColor(R.color.text_primary))
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val totalChip = TextView(ctx).apply {
+            text = "月生活费 ¥${fmtMoney(total)}"
+            textSize = 11f
+            setTextColor(ctx.getColor(R.color.primary))
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_factor_chip)
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+        }
+        headerRow.addView(title)
+        headerRow.addView(totalChip)
+        card.addView(headerRow)
+
+        // 分割线
+        val divider = View(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                .apply { topMargin = dp(10); bottomMargin = dp(6) }
+            setBackgroundColor(ctx.getColor(R.color.divider))
+        }
+        card.addView(divider)
+
+        // 每条分类：色点 + 类别名 + 金额(占比)
         val sumWeights = sliders.sumOf { it.progress }
         budgetCategories.forEachIndexed { i, name ->
             val amount = catMap[name] ?: 0.0
-            sb.append("· ").append(name).append("：")
-                .append(fmtMoney(amount)).append(" 元（")
-                .append(if (sumWeights > 0) sliders[i].progress * 100 / sumWeights else 0)
-                .append("%）\n")
-        }
-        sb.append("\n（方案已保存，可在「预警」页查看余额预警）")
-
-        binding.resultContainer.removeAllViews()
-        binding.resultContainer.addView(
-            TextView(requireContext()).apply {
-                text = sb.toString()
-                textSize = 14f
-                setTextColor(Color.parseColor("#E0E0E0"))
+            val pct = if (sumWeights > 0) sliders[i].progress * 100 / sumWeights else 0
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(6), 0, dp(6))
             }
-        )
+            // 圆点（分类色）
+            val dot = View(ctx).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(Categories.color(name))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(10), dp(10))
+            }
+            // 类别名
+            val tvName = TextView(ctx).apply {
+                text = name
+                textSize = 13f
+                setTextColor(ctx.getColor(R.color.text_primary))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { marginStart = dp(8) }
+            }
+            // 金额 + 占比
+            val rightWrap = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val tvPct = TextView(ctx).apply {
+                text = "$pct%"
+                textSize = 11f
+                setTextColor(Categories.color(name))
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            val tvAmt = TextView(ctx).apply {
+                text = "  ¥${fmtMoney(amount)}"
+                textSize = 13f
+                setTextColor(ctx.getColor(R.color.text_primary))
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            rightWrap.addView(tvPct)
+            rightWrap.addView(tvAmt)
+            row.addView(dot)
+            row.addView(tvName)
+            row.addView(rightWrap)
+            card.addView(row)
+        }
+
+        // 提示行
+        val hint = TextView(ctx).apply {
+            text = "已保存至「预警」页，可查看余额预警"
+            textSize = 11f
+            setTextColor(ctx.getColor(R.color.text_hint))
+            setPadding(0, dp(8), 0, 0)
+        }
+        card.addView(hint)
+
+        binding.resultContainer.addView(card)
     }
 
     /**

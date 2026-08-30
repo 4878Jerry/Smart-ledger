@@ -13,20 +13,27 @@
         android:orientation="vertical"
         android:padding="32dp">
 
-        <ImageView
-            android:layout_width="88dp"
-            android:layout_height="88dp"
+        <FrameLayout
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:layout_marginTop="48dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_mascot" />
+            android:background="@drawable/bg_mascot_circle">
+
+            <FrameLayout
+                android:id="@+id/img_mascot_login"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/app_name"
+                android:padding="8dp" />
+        </FrameLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/app_name"
-            android:textColor="@color/text_primary"
-            android:textSize="22sp"
+            android:textColor="@color/primary"
+            android:textSize="24sp"
             android:textStyle="bold" />
 
         <TextView
@@ -34,7 +41,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="24dp"
-            android:text="欢迎回来，登录你的记账助手"
+            android:text="小鸥陪你，让每一笔消费都有意义"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 

@@ -8,6 +8,7 @@ import com.ousuan.smartbutler.ui.alert.AlertFragment
 import com.ousuan.smartbutler.ui.budget.BudgetFragment
 import com.ousuan.smartbutler.ui.community.CommunityFragment
 import com.ousuan.smartbutler.ui.home.HomeFragment
+import com.ousuan.smartbutler.ui.mascot.MascotOverlayManager
 import com.ousuan.smartbutler.ui.profile.ProfileFragment
 
 /**
@@ -35,6 +36,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // 挂载可拖拽的悬浮小鸥（位置持久化，跟随全局换装）
+        MascotOverlayManager.attach(this)
 
         currentTag = savedInstanceState?.getString(KEY_CURRENT_TAG) ?: TAG_HOME
 
@@ -87,6 +91,12 @@ class MainActivity : AppCompatActivity() {
         }
         ft.commit()
         currentTag = tag
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 页面销毁时移除悬浮小鸥，避免泄漏
+        MascotOverlayManager.detach()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

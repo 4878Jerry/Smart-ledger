@@ -5,11 +5,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.data.model.CommunityComment
 import com.ousuan.smartbutler.data.model.CommunityPost
+import com.ousuan.smartbutler.util.Categories
 import com.ousuan.smartbutler.databinding.ItemBudgetRowBinding
 import com.ousuan.smartbutler.databinding.ItemCategoryBarBinding
 import com.ousuan.smartbutler.databinding.ItemCommentBinding
@@ -100,12 +102,14 @@ class CommunityAdapter(
             val likeIcon = ContextCompat.getDrawable(ctx, R.drawable.ic_thumb_up)!!.mutate()
             val commentIcon = ContextCompat.getDrawable(ctx, R.drawable.ic_comment)!!.mutate()
 
-            // 头部：用户名 + 首次发布 / 最近更新时间
+            // 头部：圆形头像（首字符）+ 用户名 + 时间·地点
+            binding.tvAvatarLetter.text = post.username.firstOrNull()?.toString() ?: "·"
             binding.tvUsername.text = post.username
-            binding.tvTime.text = "首次发布：" + timeFormat.format(Date(post.timestamp))
+            binding.tvTimeLocation.text = timeFormat.format(Date(post.timestamp)) + "  ·  匿名社区"
+            // 详细时间折叠隐藏（保持 binding 引用不报 NPE；UI 上不可见）
             binding.tvUpdated.text = "最近更新：" + timeFormat.format(Date(post.updatedAt))
 
-            // 月份：2026-08 -> 2026年8月
+            // 月份角标：2026-08 -> 2026年8月
             val parts = post.month.split("-")
             binding.tvMonth.text = if (parts.size == 2) {
                 "${parts[0]}年${parts[1].toIntOrNull() ?: parts[1]}月"
@@ -113,24 +117,24 @@ class CommunityAdapter(
                 post.month
             }
 
+            // 帖子标题（savingTip 可选）— 粗体大字置顶
+            if (!post.savingTip.isNullOrEmpty()) {
+                binding.tvTip.visibility = View.VISIBLE
+                binding.tvTip.text = post.savingTip
+            } else {
+                binding.tvTip.visibility = View.GONE
+            }
+
             // 模块一：消费数据（categoryBreakdown 为空 = 只发预算方案的帖子，
             // 或 dataVisibility=private = 模块设为私有/服务器已脱敏，均隐藏整卡）
             val hasData = post.categoryBreakdown.isNotEmpty() && post.dataVisibility != "private"
             binding.llDataCard.visibility = if (hasData) View.VISIBLE else View.GONE
             if (hasData) {
-                binding.tvTotal.text = "月度总支出 ¥" + "%.2f".format(post.totalExpense)
-                binding.tvTop.text = "Top 分类：${post.topCategory}"
+                binding.tvTotal.text = "¥" + "%.2f".format(post.totalExpense) + "  ·  ${post.topCategory}为主"
+                binding.tvTop.text = "总支出 ¥" + "%.2f".format(post.totalExpense)
 
-                // 分类占比柱状条
+                // 分类占比彩色横条
                 bindCategoryBars(binding.llCategories, post.categoryBreakdown)
-
-                // 省钱建议（可选）
-                if (post.savingTip.isNullOrEmpty()) {
-                    binding.tvTip.visibility = View.GONE
-                } else {
-                    binding.tvTip.visibility = View.VISIBLE
-                    binding.tvTip.text = post.savingTip
-                }
             }
 
             // 模块二：预算方案（budgetBreakdown 为空 = 未发布预算，
@@ -212,18 +216,38 @@ class CommunityAdapter(
                 onSendComment(post.postId, content)
                 binding.etComment.setText("")
             }
+
+            // 分享按钮：当前仅占位（功能开发中）
+            binding.tvShare.setOnClickListener {
+                Toast.makeText(ctx, "分享功能开发中", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
-    /** 填充分类占比柱状条：每行 = 分类名 + 比例条 + 金额(占比) */
+    /** 填充分类占比柱状条：每行 = 色点 + 分类名 + 比例条（分类色填充）+ 金额(占比) */
     private fun bindCategoryBars(container: ViewGroup, breakdown: Map<String, Double>) {
         container.removeAllViews()
         val total = breakdown.values.sum()
         if (total <= 0) return
         val inflater = LayoutInflater.from(container.context)
-        breakdown.forEach { (category, amount) ->
+        val dp = container.resources.displayMetrics.density
+        val barRadius = 5 * dp
+        breakdown.entries.sortedByDescending { it.value }.forEach { (category, amount) ->
             val row = ItemCategoryBarBinding.inflate(inflater, container, false)
             row.tvCatName.text = category
+
+            val color = Categories.color(category)
+            // 色点（左侧）：与分类同色的实心圆
+            row.viewDot.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(color)
+            }
+            // 比例条（中间）：与分类同色的圆角填充
+            row.viewBar.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = barRadius
+                setColor(color)
+            }
 
             // 按占比分配 weight（比例 x 1000，取整）
             val ratioW = (amount / total * 1000).toInt().coerceAtLeast(1)
@@ -231,7 +255,9 @@ class CommunityAdapter(
             (row.viewBarSpacer.layoutParams as LinearLayout.LayoutParams).weight =
                 (1000 - ratioW).toFloat()
 
-            row.tvCatInfo.text = "¥" + "%.2f".format(amount) + " (" + (amount / total * 100).toInt() + "%)"
+            val pct = (amount / total * 100).toInt()
+            row.tvCatInfo.text = "$pct% · ¥" + "%.2f".format(amount)
+            row.tvCatInfo.setTextColor(color)
             container.addView(row.root)
         }
     }
