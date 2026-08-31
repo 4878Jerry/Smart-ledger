@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import get_current_user
+from auth import get_current_user, get_current_user_optional
 from database import get_db
 from models import Comment, Like, Post, User
 from schemas import CommentCreate, CommentItem, PostCreate, PostUpdate, ok
@@ -18,11 +18,17 @@ def _norm_visibility(value: str | None) -> str:
     return value if value in ("public", "private") else "public"
 
 
-async def _post_to_dict(p: Post, db: AsyncSession, mask_private_modules: bool = False) -> dict:
+async def _post_to_dict(
+    p: Post,
+    db: AsyncSession,
+    mask_private_modules: bool = False,
+    viewer_user_id: int | None = None,
+) -> dict:
     """帖子 ORM → 统一响应 dict（public_stats 与 my_posts 共用）。
 
     mask_private_modules=True（公开流）时：模块级可见度为 private 的模块返回空对象 {},
     帖子本身仍可见；False（我的帖子，本人查看）返回完整数据以便编辑。
+    viewer_user_id 提供时附带 liked（该用户是否已赞），作为客户端点赞状态的权威来源。
     """
     author = await db.get(User, p.user_id)
     comments = (await db.execute(
@@ -44,6 +50,11 @@ async def _post_to_dict(p: Post, db: AsyncSession, mask_private_modules: bool = 
             category_breakdown = {}
         if p.budget_visibility != "public":
             budget_breakdown = {}
+    liked = False
+    if viewer_user_id is not None:
+        liked = (await db.execute(
+            select(Like).where(Like.post_id == p.id, Like.user_id == viewer_user_id)
+        )).scalar_one_or_none() is not None
     return {
         "post_id": p.id,
         "username": author.username if author else "",
@@ -55,6 +66,7 @@ async def _post_to_dict(p: Post, db: AsyncSession, mask_private_modules: bool = 
         "top_category": p.top_category,
         "saving_tip": p.saving_tip,
         "likes": p.likes,
+        "liked": liked,
         "visibility": p.visibility,
         "data_visibility": p.data_visibility,
         "budget_visibility": p.budget_visibility,
@@ -65,8 +77,11 @@ async def _post_to_dict(p: Post, db: AsyncSession, mask_private_modules: bool = 
 
 
 @router.get("/stats/public", response_model=None)
-async def public_stats(db: AsyncSession = Depends(get_db)):
-    """获取所有用户公开统计数据（无需 token）。
+async def public_stats(
+    user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取所有用户公开统计数据（无需 token；带 token 时附带当前用户对每帖的点赞状态 liked）。
 
     双重过滤：
     - 帖子级：posts.visibility = 'public'（仅自己可见的帖子不出现）
@@ -80,7 +95,11 @@ async def public_stats(db: AsyncSession = Depends(get_db)):
     )).scalars().all()
     result = []
     for p in posts:
-        result.append(await _post_to_dict(p, db, mask_private_modules=True))
+        result.append(await _post_to_dict(
+            p, db,
+            mask_private_modules=True,
+            viewer_user_id=user.id if user else None,
+        ))
     return ok(result)
 
 
@@ -95,7 +114,7 @@ async def my_posts(
     )).scalars().all()
     result = []
     for p in posts:
-        result.append(await _post_to_dict(p, db))
+        result.append(await _post_to_dict(p, db, viewer_user_id=user.id))
     return ok(result)
 
 
@@ -320,4 +339,6 @@ async def toggle_like(
 
     await db.commit()
     await db.refresh(post)
-    return ok({"likes": post.likes})
+    # liked = toggle 后当前用户是否已赞（like 为 None 表示原无记录 → 本次新增点赞 → 已赞），
+    # 作为客户端点赞状态的权威来源，客户端据此校准本地 likedIds，避免错位。
+    return ok({"likes": post.likes, "liked": like is None})

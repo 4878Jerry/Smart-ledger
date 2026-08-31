@@ -35,9 +35,10 @@ data class TransactionOut(
     @SerializedName("is_public") val isPublic: Boolean
 )
 
-/** 点赞接口响应 data：最新点赞数 */
+/** 点赞接口响应 data：最新点赞数 + 当前用户是否已赞（服务器权威状态，客户端据此校准本地状态） */
 data class LikeData(
-    @SerializedName("likes") val likes: Int
+    @SerializedName("likes") val likes: Int,
+    @SerializedName("liked") val liked: Boolean = false
 )
 
 data class LikeResponse(

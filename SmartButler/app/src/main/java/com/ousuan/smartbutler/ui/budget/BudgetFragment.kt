@@ -34,7 +34,7 @@ import kotlin.math.roundToInt
  * 预算规划页：完整移植 C++ budget_planner.cpp。
  *
  * - 11 个支出分类滑块（餐饮/居住/交通/购物/娱乐/医疗/教育/通讯/社交人情/旅行/其他），
- *   拖动或 −/+ 微调时其余分类等比缩放自动补足，总和恒 100%。
+ *   拖动或 −/+ 微调时，差额补到其余分类中占比最大的一类，总和恒 100%。
  * - 省份 × 城市等级综合系数 → 一键配置默认占比（居住随系数浮动，其余 10 类等比补足）。
  * - 推荐预算：收入 × 基准比例（70/60/50/40%）× 综合地域系数；自定义总额：直接输入按占比分配。
  * - 月 / 年周期切换；生成后显示软提醒（6 条规则）。
@@ -173,8 +173,8 @@ class BudgetFragment : Fragment() {
             val minus = stepButton(color, "−")
             val plus = stepButton(color, "+")
             val index = i
-            minus.setOnClickListener { rebalance(index, weights[index] - 1) }
-            plus.setOnClickListener { rebalance(index, weights[index] + 1) }
+            minus.setOnClickListener { adjustWeight(index, weights[index] - 1) }
+            plus.setOnClickListener { adjustWeight(index, weights[index] + 1) }
             row.addView(minus, LinearLayout.LayoutParams(dp(30), dp(30)))
             row.addView(plus, LinearLayout.LayoutParams(dp(30), dp(30)))
 
@@ -182,10 +182,10 @@ class BudgetFragment : Fragment() {
             sliders.add(seekBar)
             pctViews.add(pct)
 
-            // 拖动 → 自动补足
+            // 拖动 → 目标分类取当前值，差额补到最大分类
             seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser && !balancing) rebalance(index, progress)
+                    if (fromUser && !balancing) adjustWeight(index, progress)
                 }
 
                 override fun onStartTrackingTouch(sb: SeekBar?) {}
@@ -244,58 +244,79 @@ class BudgetFragment : Fragment() {
         return arr
     }
 
-    /** 程序化刷新全部滑块与百分比文本 */
+    /** 程序化刷新全部滑块与百分比文本（try-finally 保证 balancing 一定复位，防异常卡死） */
     private fun applyWeights(newWeights: IntArray) {
         balancing = true
-        newWeights.forEachIndexed { i, w ->
-            weights[i] = w
-            sliders[i].progress = w
-            pctViews[i].text = "$w%"
+        try {
+            newWeights.forEachIndexed { i, w ->
+                weights[i] = w
+                sliders[i].progress = w
+                pctViews[i].text = "$w%"
+            }
+        } finally {
+            balancing = false
         }
-        balancing = false
     }
 
     /**
-     * 拖动 / 微调后的自动补足：被操作行取新值，其余行按当前比例等比缩放，
-     * 四舍五入误差补到其余行中占比最大的一行，保证总和恒 = 100。
+     * 拖动 / 微调后的自动补足（「差值补到最大分类」策略）：
+     * 只改变被操作行与吸收差额的一行，其余行保持不动，保证总和恒 = 100%。
+     * - 被操作行减小（target < 原值）：差额加到「其余分类中占比最大」的一类；
+     * - 被操作行增大（target > 原值）：从「其余分类中占比最大」的一类开始扣减，
+     *   不足以扣时依次扣次大分类（其余总和 ≥ 差额，数学上必能扣完）；
+     * - 其余分类全为 0 时，差额按顺序补到第一个非操作行。
      */
-    private fun rebalance(moved: Int, newVal: Int) {
+    private fun adjustWeight(moved: Int, target: Int) {
         if (balancing) return
-        val v = newVal.coerceIn(0, 100)
-        val oldMoved = weights[moved]
-        if (oldMoved == v) return
-        val othersTotal = weights.sum() - oldMoved
-        val newWeights = IntArray(weights.size)
+        val old = weights[moved]
+        val v = target.coerceIn(0, 100)
+        if (old == v) return
 
-        if (othersTotal > 0) {
-            val scale = (100 - v).toDouble() / othersTotal
-            var sum = v
-            weights.indices.forEach { i ->
-                newWeights[i] = if (i == moved) v else (weights[i] * scale).roundToInt()
-                if (i != moved) sum += newWeights[i]
+        val newWeights = weights.copyOf()
+        newWeights[moved] = v
+
+        // 差额：>0 表示其余分类需增加 old-v，<0 表示其余分类需减少 v-old
+        val delta = old - v
+
+        if (delta > 0) {
+            // 差额加到「其余分类中最大」的一类；其余全 0 时补到第一个非 moved 分类
+            val idx = maxIndexExcluding(moved)
+            if (idx >= 0) {
+                newWeights[idx] += delta
+            } else {
+                val first = weights.indices.firstOrNull { it != moved }
+                if (first != null) newWeights[first] += delta
             }
-            var diff = 100 - sum
-            if (diff != 0) {
-                var idx = -1
-                var maxV = -1
-                newWeights.forEachIndexed { i, w ->
-                    if (i != moved && w > maxV) {
-                        maxV = w
-                        idx = i
-                    }
-                }
-                if (idx >= 0 && maxV > 0) newWeights[idx] += diff else newWeights[moved] += diff
+        } else if (delta < 0) {
+            // 从最大分类依次扣减（不足则继续扣次大），直至差额补足
+            var remaining = -delta
+            val order = weights.indices
+                .filter { it != moved }
+                .sortedByDescending { weights[it] }
+            for (idx in order) {
+                if (remaining <= 0) break
+                val take = minOf(newWeights[idx], remaining)
+                newWeights[idx] -= take
+                remaining -= take
             }
-        } else {
-            // 其余行全为 0（极端情况）：剩余部分均分给其余行
-            val share = (100 - v) / (weights.size - 1)
-            val rem = (100 - v) - share * (weights.size - 1)
-            weights.indices.forEach { i ->
-                newWeights[i] = if (i == moved) v else share
-            }
-            newWeights[weights.size - 1] += rem
+            // v ≤ 100 时其余总和恒 ≥ 需扣量，正常不会走到；防御性钳制
+            if (remaining > 0) newWeights[moved] -= remaining
         }
-        applyWeights(newWeights)
+        // 兜底归一化（正常情况总和已恒 100）
+        applyWeights(normalizeSum(newWeights))
+    }
+
+    /** 其余分类中占比最大者的下标；其余全为 0 时返回 -1（并列取先出现者） */
+    private fun maxIndexExcluding(excluded: Int): Int {
+        var idx = -1
+        var max = -1
+        weights.indices.forEach { i ->
+            if (i != excluded && weights[i] > max) {
+                max = weights[i]
+                idx = i
+            }
+        }
+        return idx
     }
 
     // ==================== 地域联动 ====================

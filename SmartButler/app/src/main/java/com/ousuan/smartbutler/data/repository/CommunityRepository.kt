@@ -11,6 +11,7 @@ import com.ousuan.smartbutler.data.model.CommentOut
 import com.ousuan.smartbutler.data.model.CommentRequest
 import com.ousuan.smartbutler.data.model.CommunityComment
 import com.ousuan.smartbutler.data.model.CommunityPost
+import com.ousuan.smartbutler.data.model.LikeData
 import com.ousuan.smartbutler.data.model.PostRequest
 import com.ousuan.smartbutler.data.model.PostUpdateRequest
 import com.ousuan.smartbutler.data.model.PublicStats
@@ -185,8 +186,11 @@ object CommunityRepository {
             result.onSuccess { resp ->
                 if (resp.code == 0 && resp.data != null) {
                     mergeServerPosts(resp.data)
+                    isOfflineMode = false
                 }
             }
+        } else {
+            isOfflineMode = true
         }
         return posts.filter { it.username == username }
             .sortedByDescending { it.timestamp }
@@ -246,12 +250,21 @@ object CommunityRepository {
         return Result.failure(UserException("网络不可用，更新可见度失败"))
     }
 
-    /** 点赞 / 取消点赞：在线实时执行并同步缓存；离线不执行，返回「网络不可用」提示 */
-    suspend fun likePost(postId: String): Result<Int> {
+    /**
+     * 点赞 / 取消点赞：在线实时执行并同步缓存；离线不执行，返回「网络不可用」提示。
+     *
+     * 返回 [LikeData]（服务器权威）：likes = 最新点赞数，liked = 当前用户是否已赞。
+     * 客户端必须以返回的 liked 为准校准本地状态——服务器为 toggle 接口，本地猜错一次
+     * 就会造成「点赞后不红、取消反而变红」的永久错位，权威状态可自愈。
+     *
+     * @param shouldLike 目标状态：true = 点赞，false = 取消点赞（本地帖据此增减计数；
+     *                   服务器帖为 toggle 接口，此参数仅用于本地展示一致性）
+     */
+    suspend fun likePost(postId: String, shouldLike: Boolean = true): Result<LikeData> {
         val serverId = postId.toLongOrNull()
         if (serverId == null) {
             // 本地模拟帖子（local- 前缀，未同步到服务器）
-            return likeLocal(postId)
+            return likeLocal(postId, shouldLike)
         }
         // 服务器帖子：离线拦截，不发起请求
         if (!NetworkChecker.checkServerAvailable()) {
@@ -259,11 +272,11 @@ object CommunityRepository {
             return Result.failure(UserException("网络不可用，请稍后重试"))
         }
         return ApiClient.safeApiCall { ApiClient.service.likePost(serverId) }
-            .map { it.data?.likes ?: 0 }
-            .onSuccess { likes ->
-                syncLocalLike(postId, likes)
+            .map { it.data ?: LikeData(likes = 0, liked = shouldLike) }
+            .onSuccess { data ->
+                syncLocalLike(postId, data.likes)
                 // 同步更新缓存表
-                runCatching { cachedPostDao.updateLikes(postId, likes) }
+                runCatching { cachedPostDao.updateLikes(postId, data.likes) }
             }
     }
 
@@ -487,13 +500,15 @@ object CommunityRepository {
 
     // ---------- 本地模拟操作（离线降级） ----------
 
-    private fun likeLocal(postId: String): Result<Int> {
+    /** 本地帖点赞/取消：按目标状态增减计数（修复旧版无条件 +1 导致取消时计数仍增加的 bug） */
+    private fun likeLocal(postId: String, shouldLike: Boolean): Result<LikeData> {
         val index = posts.indexOfFirst { it.postId == postId }
         if (index < 0) return Result.failure(IllegalArgumentException("帖子不存在"))
         val post = posts[index]
-        posts[index] = post.copy(likes = post.likes + 1)
+        val newLikes = (post.likes + if (shouldLike) 1 else -1).coerceAtLeast(0)
+        posts[index] = post.copy(likes = newLikes)
         savePersistedPosts()
-        return Result.success(posts[index].likes)
+        return Result.success(LikeData(likes = newLikes, liked = shouldLike))
     }
 
     private fun addCommentLocal(postId: String, text: String, username: String): Result<CommunityComment> {
@@ -723,6 +738,7 @@ object CommunityRepository {
         topCategory = topCategory,
         savingTip = savingTip,
         likes = likes,
+        liked = liked,
         comments = comments.map { it.toLocalComment() },
         timestamp = parseServerTime(createdAt),
         updatedAt = parseServerTime(updatedAt).takeIf { it > 0 } ?: parseServerTime(createdAt),

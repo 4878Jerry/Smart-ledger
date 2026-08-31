@@ -17,6 +17,8 @@ data class PublicStatsResponse(
     @SerializedName("top_category") val topCategory: String,
     @SerializedName("saving_tip") val savingTip: String?,
     @SerializedName("likes") val likes: Int,
+    /** 当前登录用户是否已赞（服务器权威状态；未登录/离线时为 false） */
+    @SerializedName("liked") val liked: Boolean = false,
     @SerializedName("visibility") val visibility: String = "public",
     @SerializedName("data_visibility") val dataVisibility: String = "public",
     @SerializedName("budget_visibility") val budgetVisibility: String = "public",

@@ -59,3 +59,22 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
     return user
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """解析当前登录用户；未带 token / token 无效时返回 None（不抛 401）。
+
+    用于「免 token 但带 token 时返回更丰富信息」的接口
+    （如公开帖子流附带当前用户对该帖的点赞状态 liked）。
+    """
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return None
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub", ""))
+    except (JWTError, ValueError):
+        return None
+    return await db.get(User, user_id)

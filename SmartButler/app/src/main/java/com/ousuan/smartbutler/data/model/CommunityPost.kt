@@ -23,6 +23,8 @@ data class CommunityPost(
     val savingTip: String?,
     /** 点赞数 */
     val likes: Int,
+    /** 当前登录用户是否已赞（服务器权威状态，仅服务器帖有效；模拟/本地帖恒为 false） */
+    val liked: Boolean = false,
     /** 评论列表 */
     val comments: List<CommunityComment>,
     /** 首次发布时间（毫秒时间戳） */

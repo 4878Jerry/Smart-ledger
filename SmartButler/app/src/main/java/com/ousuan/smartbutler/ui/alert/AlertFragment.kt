@@ -1,6 +1,7 @@
 package com.ousuan.smartbutler.ui.alert
 
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputType
@@ -64,6 +65,9 @@ class AlertFragment : Fragment() {
 
     /** 当前是否有余额预警（决定小鸥表情） */
     private var warningState = false
+
+    /** 本月支出超预算预警条（动态创建在余额预警下方，复用实例） */
+    private var budgetWarnView: TextView? = null
 
     /** 既有线：当前筛选范围的原始记录（只读，供差异对比） */
     private var rangeRecords: List<Transaction> = emptyList()
@@ -202,6 +206,17 @@ class AlertFragment : Fragment() {
                 binding.tvMascotSay.text = "小鸥帮你盯紧钱包"
                 binding.tvMascotSaySub.text = "设置月度预算，消费更安心"
             }
+
+            // 本月支出 vs 月预算 预警（固定用当前自然月，与余额预警独立展示）：
+            // 预算总额 = BudgetRepository（Room，按账号隔离）→ 为空回退 BudgetPrefs（未登录遗留/兜底）
+            val app = requireActivity().application as SmartButlerApp
+            val userId = app.userRepository.getCurrentUser()?.userId ?: ""
+            val monthBudgetTotal = app.budgetRepository.getBudgetMap(userId).values.sum()
+                .takeIf { it > 0 }
+                ?: (if (BudgetPrefs.hasBudget(requireContext())) BudgetPrefs.total(requireContext()) else 0.0)
+            val monthExpense = ExpenseAnalyzer
+                .summarize(repository.getByMonth(LocalDate.now().format(monthFmt))).expense
+            updateBudgetSpendWarn(monthExpense, monthBudgetTotal)
 
             // 分类汇总：色点 + 类别名 + 金额(占比)
             binding.catContainer.removeAllViews()
@@ -977,6 +992,73 @@ class AlertFragment : Fragment() {
         })
     }
 
+    // ===================== 本月支出超预算预警 =====================
+
+    /**
+     * 本月支出 vs 月预算 预警：
+     * - 预算未设置（总额 <= 0）或本月无支出 → 不显示；
+     * - 使用比例 > 100% → 红色「本月支出已超出预算！超支 xx 元」；
+     * - 使用比例 > 80% → 橙色「本月支出已使用预算的 xx%，请注意控制」；
+     * - <= 80% → 不显示。
+     * 预警条动态创建在余额预警下方，首次创建后复用实例，颜色随级别切换。
+     */
+    private fun updateBudgetSpendWarn(monthExpense: Double, budgetTotal: Double) {
+        // 已有实例直接复用；没有则新建并缓存到字段（不能对 val view 重赋值，否则报 Val cannot be reassigned）
+        val view = budgetWarnView ?: createBudgetWarnView().also { budgetWarnView = it }
+        if (budgetTotal <= 0 || monthExpense <= 0) {
+            view.visibility = View.GONE
+            return
+        }
+        val ratio = monthExpense / budgetTotal * 100
+        val warn: Triple<String, Int, Int> = when {
+            ratio > 100 -> Triple(
+                "本月支出已超出预算！超支 ${fmtMoney(monthExpense - budgetTotal)} 元",
+                requireContext().getColor(R.color.expense),
+                0xFFFFEBEE.toInt() // 浅红底
+            )
+            ratio > 80 -> Triple(
+                "本月支出已使用预算的 ${ratio.toInt()}%，请注意控制",
+                requireContext().getColor(R.color.warn_text),
+                requireContext().getColor(R.color.warn_bg)
+            )
+            else -> {
+                view.visibility = View.GONE
+                return
+            }
+        }
+        view.visibility = View.VISIBLE
+        view.text = warn.first
+        view.setTextColor(warn.second)
+        (view.background as GradientDrawable).apply {
+            setColor(warn.third)
+            setStroke(dp(1), warn.second)
+        }
+    }
+
+    /** 动态创建超预算预警条（圆角卡片，插在余额预警 TextView 下方），首次创建后复用 */
+    private fun createBudgetWarnView(): TextView {
+        val tv = TextView(requireContext()).apply {
+            textSize = 13f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(requireContext().getColor(R.color.warn_bg))
+                setStroke(dp(1), requireContext().getColor(R.color.warn_text))
+            }
+        }
+        val root = binding.tvBalanceWarn.parent as ViewGroup
+        root.addView(
+            tv,
+            root.indexOfChild(binding.tvBalanceWarn) + 1,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        )
+        return tv
+    }
+
     // ===================== 原有逻辑：小鸥 / 通用 =====================
 
     private fun simpleRow(text: String): TextView = TextView(requireContext()).apply {
@@ -1004,6 +1086,7 @@ class AlertFragment : Fragment() {
 
     override fun onDestroyView() {
         MascotManager.removeObserver(mascotListener)
+        budgetWarnView = null
         super.onDestroyView()
         _binding = null
     }

@@ -25,7 +25,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 社区页：浏览他人公开的消费统计（脱敏汇总）并发表评论。
@@ -41,6 +44,12 @@ class CommunityFragment : Fragment() {
     private val repository get() = app.repository
 
     private lateinit var adapter: CommunityAdapter
+
+    /**
+     * 每个帖子的点赞互斥锁：同一帖子的 toggle 请求串行执行，
+     * 防止快速连点时多个并发请求乱序到达服务器导致状态错位。
+     */
+    private val likeMutexes = ConcurrentHashMap<String, Mutex>()
 
     /** 「包含预算方案」默认勾选只执行一次（有预算时），之后保留用户手动选择 */
     private var budgetOptionInitialized = false
@@ -83,6 +92,8 @@ class CommunityFragment : Fragment() {
         )
         binding.rvPosts.layoutManager = LinearLayoutManager(requireContext())
         binding.rvPosts.adapter = adapter
+        // 恢复本账号的点赞状态（App 重启 / Fragment 重建后不丢失）
+        adapter.loadLikedIds(requireContext(), currentUserId())
         binding.btnPublish.setOnClickListener { publish() }
         // 顶部 tab chips：纯视觉占位（关注/同城/话题敬请期待）；推荐为默认
         setupCommunityTabs()
@@ -129,6 +140,8 @@ class CommunityFragment : Fragment() {
         val isConnected = NetworkMonitor.isConnected()
         Log.d("CommunityTip", "onResume: 网络状态=$isConnected, 提示条=${if (isConnected) "隐藏" else "显示"}")
         updateOfflineTipVisibility(!isConnected)
+        // 登录/切换账号后回到本页，按当前账号重新加载点赞状态
+        adapter.loadLikedIds(requireContext(), currentUserId())
         refresh()
     }
 
@@ -183,6 +196,11 @@ class CommunityFragment : Fragment() {
             Log.d(TAG, "最新帖子ID: ${visible.firstOrNull()?.postId}")
             adapter.setData(visible)
             binding.tvEmpty.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
+            // 在线拉取成功：用服务器权威 liked 状态校准本地点赞记忆
+            // （换设备 / 清数据 / 旧版本丢失导致本地与服务器错位时，进页面即可自愈）
+            if (!CommunityRepository.isOfflineMode) {
+                adapter.reconcileLikedIds(requireContext(), currentUserId(), data)
+            }
             // 离线提示条只由网络接口状态控制（与公开开关、服务器探测结果无关）：
             // 无网络时显示，有网络时隐藏
             updateOfflineTipVisibility(!NetworkMonitor.isConnected())
@@ -201,30 +219,44 @@ class CommunityFragment : Fragment() {
         Log.d("CommunityTip", "提示条可见性: ${if (show) "显示" else "隐藏"}")
     }
 
-    private fun like(postId: String) {
-        // 1. 乐观更新：先在 UI 端 toggle 点赞状态（后端接口就是 toggle，
-        //    已点赞 → 取消；未点赞 → 点赞），立刻重绘单条以反映颜色变化
-        val wasLiked = adapter.likedIds.contains(postId)
-        if (wasLiked) adapter.likedIds.remove(postId) else adapter.likedIds.add(postId)
-        adapter.notifyItemChangedByPostId(postId)
+    /** 当前登录用户 ID（未登录返回 null，点赞状态按账号隔离存储） */
+    private fun currentUserId(): String? = userRepository.getCurrentUser()?.userId
 
+    private fun like(postId: String) {
+        // 同一帖子串行执行：上一个 toggle 完成后再发下一个，
+        // 避免连点产生的并发请求乱序/部分失败导致本地与服务器状态错位
+        val mutex = likeMutexes.getOrPut(postId) { Mutex() }
         viewLifecycleOwner.lifecycleScope.launch {
-            CommunityRepository.likePost(postId)
-                .onSuccess { likes ->
-                    // 服务器返回最新 likes 数，单独更新这一条（不重排列表）
-                    if (!adapter.updateLikes(postId, likes)) {
-                        Log.d(TAG, "点赞后找不到帖子 $postId，触发全量刷新")
-                        refresh()
+            mutex.withLock {
+                // 进入锁后重新计算目标状态（前面可能已有操作完成并改写了状态）
+                val targetLiked = postId !in adapter.likedIds
+                applyLikeUi(postId, targetLiked)
+                CommunityRepository.likePost(postId, shouldLike = targetLiked)
+                    .onSuccess { data ->
+                        // 以服务器权威状态（liked = toggle 后是否已赞）为准写回，
+                        // 可自愈「本地记忆与服务器反向」的历史错位
+                        applyLikeUi(postId, data.liked)
+                        if (!adapter.updateLikes(postId, data.likes)) {
+                            Log.d(TAG, "点赞后找不到帖子 $postId，触发全量刷新")
+                            refresh()
+                        }
                     }
-                }
-                .onFailure { e ->
-                    // 失败回滚：把 UI 状态改回原值并重绘
-                    if (wasLiked) adapter.likedIds.add(postId)
-                    else adapter.likedIds.remove(postId)
-                    adapter.notifyItemChangedByPostId(postId)
-                    Toast.makeText(requireContext(), e.message ?: "操作失败", Toast.LENGTH_SHORT).show()
-                }
+                    .onFailure { e ->
+                        // 串行下无并发覆盖问题；防御性检查：期间状态未被其他操作改变才回滚
+                        if ((postId in adapter.likedIds) == targetLiked) {
+                            applyLikeUi(postId, !targetLiked)
+                        }
+                        Toast.makeText(requireContext(), e.message ?: "操作失败", Toast.LENGTH_SHORT).show()
+                    }
+            }
         }
+    }
+
+    /** 统一点赞状态更新：改 likedIds + 落盘 + 重绘单条 */
+    private fun applyLikeUi(postId: String, liked: Boolean) {
+        if (liked) adapter.likedIds.add(postId) else adapter.likedIds.remove(postId)
+        adapter.persistLikedIds(requireContext(), currentUserId())
+        adapter.notifyItemChangedByPostId(postId)
     }
 
     private fun toggleExpand(postId: String) {
@@ -334,6 +366,7 @@ class CommunityFragment : Fragment() {
         super.onDestroyView()
         // 取消注册监听，避免内存泄漏
         dataPrefs.unregisterOnSharedPreferenceChangeListener(publicPrefsListener)
+        likeMutexes.clear()
         _binding = null
     }
 

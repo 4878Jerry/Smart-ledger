@@ -14,10 +14,13 @@ import com.ousuan.smartbutler.util.fmtMoney
 
 /**
  * 消费记录列表适配器。
- * 传入 onIfClick 时显示每行「IF」按钮（预警页使用），首页传 null 隐藏。
+ * - onIfClick 传入时显示每行「IF」按钮（预警页使用），首页传 null 隐藏；
+ * - onItemClick 点击行触发（首页编辑记录），onLongClick 长按行触发（首页删除记录）。
  */
 class RecordAdapter(
-    private val onIfClick: ((Transaction) -> Unit)? = null
+    private val onIfClick: ((Transaction) -> Unit)? = null,
+    private val onItemClick: ((Transaction) -> Unit)? = null,
+    private val onLongClick: ((Transaction) -> Unit)? = null
 ) : RecyclerView.Adapter<RecordAdapter.VH>() {
 
     private val items = mutableListOf<Transaction>()
@@ -66,6 +69,15 @@ class RecordAdapter(
             b.btnIf.setOnClickListener { cb(t) }
         } ?: run {
             b.btnIf.visibility = View.GONE
+        }
+
+        // 点击 → 编辑记录；长按 → 删除确认（左滑删除之外的第二入口）
+        holder.itemView.setOnClickListener {
+            onItemClick?.invoke(t)
+        }
+        holder.itemView.setOnLongClickListener {
+            onLongClick?.invoke(t)
+            true
         }
     }
 }

@@ -15,11 +15,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.ousuan.smartbutler.R
 import com.ousuan.smartbutler.SmartButlerApp
 import com.ousuan.smartbutler.databinding.FragmentListBinding
+import com.ousuan.smartbutler.data.Transaction
 import com.ousuan.smartbutler.util.MascotManager
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** 列表视图：消费明细（按日期倒序，Flow 自动刷新），支持左滑删除 */
+/** 列表视图：消费明细（按日期倒序，Flow 自动刷新），支持左滑删除 / 长按删除 / 点击编辑 */
 class RecordListFragment : Fragment() {
 
     private var _binding: FragmentListBinding? = null
@@ -42,7 +43,11 @@ class RecordListFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        adapter = RecordAdapter(onIfClick = null)
+        adapter = RecordAdapter(
+            onIfClick = null,
+            onItemClick = { showEditDialog(it) },
+            onLongClick = { confirmDelete(it) }
+        )
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = adapter
         setupSwipeDelete()
@@ -130,6 +135,31 @@ class RecordListFragment : Fragment() {
         if (position in 0 until adapter.itemCount) {
             adapter.notifyItemChanged(position)
         }
+    }
+
+    /** 点击列表项 → 编辑记录（复用记账弹窗，预填原数据，保存走 DAO update） */
+    private fun showEditDialog(t: Transaction) {
+        AddTransactionDialog().show(requireContext(), repository, viewLifecycleOwner.lifecycleScope, t)
+    }
+
+    /** 长按列表项 → 删除确认对话框（与左滑删除同款交互） */
+    private fun confirmDelete(t: Transaction) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("删除记录")
+            .setMessage("确定要删除这条记录吗？")
+            .setPositiveButton("删除") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    try {
+                        repository.delete(t)
+                        // Flow 会自动推送新列表刷新（图表/统计同样随 Flow 更新）
+                        Toast.makeText(requireContext(), "已删除", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(requireContext(), e.message ?: "删除失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     override fun onDestroyView() {

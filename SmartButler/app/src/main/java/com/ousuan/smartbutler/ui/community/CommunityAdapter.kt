@@ -1,6 +1,7 @@
 package com.ousuan.smartbutler.ui.community
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -38,8 +39,47 @@ class CommunityAdapter(
     /** 是否显示可见度编辑行（仅「我的帖子」页开启，社区流隐藏） */
     var showVisibilityControl: Boolean = false
 
-    /** 当前已点赞的帖子 ID（用于按钮变色） */
+    /** 当前已点赞的帖子 ID（用于按钮变色），按账号持久化，重启/刷新不丢失 */
     val likedIds = mutableSetOf<String>()
+
+    /**
+     * 从本地恢复点赞状态（按账号隔离）：页面重建 / App 重启后调用，
+     * 避免「服务器已赞但本地没记录」导致的 toggle 错位（点了变红、服务器却在取消）。
+     */
+    fun loadLikedIds(context: Context, userId: String?) {
+        likedIds.clear()
+        likedIds.addAll(
+            context.getSharedPreferences(LIKE_PREFS, Context.MODE_PRIVATE)
+                .getStringSet("liked_${userId ?: ""}", emptySet()) ?: emptySet()
+        )
+    }
+
+    /** 把当前 likedIds 落盘（每次点赞状态变更后调用，保证刷新/重启后不丢失） */
+    fun persistLikedIds(context: Context, userId: String?) {
+        context.getSharedPreferences(LIKE_PREFS, Context.MODE_PRIVATE)
+            .edit().putStringSet("liked_${userId ?: ""}", likedIds.toSet()).apply()
+    }
+
+    /**
+     * 用服务器权威数据校准本地点赞状态（仅校准服务器帖，sample-/local- 帖不涉及）：
+     * 在线拉取到含 liked 字段的帖子后调用，修复「换设备 / 清数据 / 旧版本丢失后
+     * 本地 likedIds 与服务器错位」导致的点击反向问题。有变化才落盘。
+     */
+    fun reconcileLikedIds(context: Context, userId: String?, serverPosts: List<CommunityPost>) {
+        var changed = false
+        serverPosts.forEach { post ->
+            val serverId = post.postId.toLongOrNull() ?: return@forEach
+            val likedNow = post.postId in likedIds
+            if (post.liked && !likedNow) {
+                likedIds.add(post.postId)
+                changed = true
+            } else if (!post.liked && likedNow) {
+                likedIds.remove(post.postId)
+                changed = true
+            }
+        }
+        if (changed) persistLikedIds(context, userId)
+    }
 
     /** 已展开评论区的帖子 ID */
     val expandedIds = mutableSetOf<String>()
@@ -285,5 +325,9 @@ class CommunityAdapter(
             item.tvCommentTime.text = timeFormat.format(Date(comment.timestamp))
             container.addView(item.root)
         }
+    }
+
+    private companion object {
+        const val LIKE_PREFS = "community_like_prefs"
     }
 }

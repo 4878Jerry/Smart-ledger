@@ -61,7 +61,7 @@ app/src/main/java/com/ousuan/smartbutler/
 │   │                          #   CommunityRepository（社区）
 │   └── sync/SyncManager.kt    # 云同步：离线缓存 → 服务器，网络恢复自动增量同步（记录+帖子+预算）
 ├── ui/
-│   ├── auth/                  # 登录 / 注册界面
+│   ├── auth/                  # 登录 / 注册界面（登录页顶部含服务器地址输入框 + 保存即生效 + 连接状态检测 + 离线降级提示）
 │   ├── home/                  # 首页：收支列表 + 折线/饼图（ViewPager2）
 │   ├── budget/BudgetFragment.kt    # 预算设置：打开从本地 Room 回填，保存先写本地再推服务器
 │   ├── alert/AlertFragment.kt      # 超支/异常预警（读 BudgetPrefs）
@@ -70,7 +70,8 @@ app/src/main/java/com/ousuan/smartbutler/
 │   │                          #   MyPostsActivity（我的帖子，可改可见度）
 │   ├── profile/ProfileFragment.kt  # 个人设置（含全局数据公开开关、我的帖子入口）
 │   ├── settings/              # 设置页
-│   ├── voice/                 # VoiceInputActivity + VoskSpeechRecognizer（离线语音记账）
+│   ├── voice/                 # VoiceInputActivity + VoskSpeechRecognizer（离线语音记账）+
+│   │                          #   BaiduAsrManager（百度语音识别，在线备选）
 │   ├── ocr/OcrInputActivity.kt     # OCR 记账（ML Kit 中文识别 + 金额/分类解析）
 │   ├── widget/BarChartView.kt      # 自定义柱状图 View（预算分布/分类展示用）
 │   └── mascot/                # 吉祥物相关资源/组件
@@ -90,7 +91,7 @@ app/src/main/java/com/ousuan/smartbutler/
 - 静态检查：`.\gradlew lint`（AGP 默认任务，扫描 UI/资源/权限问题）；IDE 内可看即时 lint 诊断。
 - 测试：工程未配置 JUnit/仪器测试依赖（`app/build.gradle` 无 `testImplementation`），无单测任务；功能验证靠编译通过 + 后端回归脚本 + 真机 logcat 日志（按类名/标签过滤）。后端回归脚本 `backend/_verify_budget.py`（urllib 直测预算接口与迁移，无需 venv 依赖）。
 - 后端启动见「技术栈 → 后端」；首次可 `python import_data.py` 导入测试数据（预置 test1/test2，密码 123456）。
-- 服务器地址在 Android 端 `ApiConfig` 集中配置（可在设置页修改，默认指向局域网/Tailscale IP）；HTTP 明文依赖 `AndroidManifest.xml` 的 `usesCleartextTraffic="true"`。
+- 服务器地址在 Android 端 `ApiConfig` 集中配置（设置页与登录页均可修改，保存即生效无需重启；登录页含连接状态检测与离线降级提示，默认指向局域网/Tailscale IP）；HTTP 明文依赖 `AndroidManifest.xml` 的 `usesCleartextTraffic="true"`。
 - 权限：`RECORD_AUDIO`（语音）、`INTERNET`（网络/同步/社区）。
 
 ## 业务要点
@@ -99,16 +100,16 @@ app/src/main/java/com/ousuan/smartbutler/
 - **文本解析流程**: 语音（Vosk 离线）/ OCR（ML Kit）得到原始文本 → `ParseUtils` 提取金额与分类 → 用户确认后入库。
 - **云同步**: 记录带 `local_id` 幂等上传；离线时帖子进入 PendingPost/CachedPost 队列，网络恢复自动补传；登录成功后自动下载服务器数据（记录 + 我的帖子 + 预算），支持换机/重装恢复。
 - **预算（云端存储 + 本地优先）**: Room `budgets` 表（按 userId 隔离）为本地真源，服务器 `users.budget_json` 为云端备份。
-  - 保存：`BudgetRepository.saveBudget()` **先无条件写 Room + BudgetPrefs（本地立即生效），再异步 `pushToServer`**（离线仅标记待同步，网络恢复 `syncPending` 补推）。
-  - 加载：`BudgetFragment` 打开时 `loadSavedBudget()` 从 **Room 优先**读取回填（总额 + 滑块占比 + 方案展示），Room 空或未登录回退 `BudgetPrefs`，全程不依赖网络。
-  - 调和：登录后 `fetchFromServer()` —— 服务器有则覆盖本地；服务器空本地有则保留并补传；两者均空但 BudgetPrefs 有遗留 → 迁移到账号并上传。
+  - 保存：`BudgetRepository.saveBudget()` **先无条件写 Room + BudgetPrefs（本地立即生效），再异步 `pushToServer`**。`pushToServer` **不依赖 `NetworkMonitor.isConnected()` 短路**（局域网/Tailscale 无外网验证会误判离线，短路会导致预算永远推不上服务器），直接真实请求 PUT，失败才标记待同步，网络恢复 `syncPending` 补推。
+  - 加载：`BudgetFragment` 打开时 `loadSavedBudget()` 从 **Room 优先**读取回填（总额 + 滑块占比 + 方案展示），Room 空或未登录回退 `BudgetPrefs`，全程不依赖网络；`onResume` / `onHiddenChanged` 均重载，保证外部（如 IF 线联动）写入后切回 Tab 立即可见。
+  - 调和：登录后 `fetchFromServer()` —— **若本地有 pending（未上传的离线修改）则以本地为准先补推，补推失败保留本地，绝不用旧服务器数据覆盖**；其余情况：服务器有则覆盖本地；服务器空本地有则保留并补传；两者均空但 BudgetPrefs 有遗留 → 迁移到账号并上传。
 - **社区**: 帖子 = 用户 + 月份（幂等，同月重发会更新旧帖并保留首次创建时间）；每个帖子含两个独立模块 —— `category_breakdown`（消费数据）与 `budget_breakdown`（预算方案），两者皆空不能发布；支持评论、点赞、我的帖子管理。
 - **公开可见度（已实现）**: 全局开关（`DataPublicPrefs`，按用户独立存储）+ 帖子级可见度（`visibility` / `data_visibility` / `budget_visibility`）。发布时在 `CommunityFragment` 选择，`MyPostsActivity` / `CommunityAdapter` 可随时编辑（`PUT /api/posts/{id}`）。服务器对非公开模块脱敏后再下发；模块私有则 Android 端隐藏对应卡片。
 - **统计**: `ExpenseAnalyzer` 提供按月汇总、分类占比、趋势等，图表数据由 DAO 聚合查询提供。
 
 ## 网络与连通性判断（易踩坑）
 
-- **接口能力判断 vs 真实连通性**: `NetworkMonitor.hasInternet()` 只检查 `NET_CAPABILITY_INTERNET`（**不要加 `NET_CAPABILITY_VALIDATED`**，局域网/Tailscale 无外网验证会被误判离线，导致云同步全链路短路）。真实连通性用 `NetworkChecker.checkServerAvailable()`（3s 探测服务器）兜底。
+- **接口能力判断 vs 真实连通性**: `NetworkMonitor.hasInternet()` 只检查 `NET_CAPABILITY_INTERNET`（**不要加 `NET_CAPABILITY_VALIDATED`**，局域网/Tailscale 无外网验证会被误判离线）。该判断**只能用于 UI 状态提示**（如社区离线提示条），**禁止用于云同步的推送短路**（`BudgetRepository.pushToServer` 已改真实请求；交易/帖子推送同样应在网络失败时标记待同步而非预判短路）。真实连通性用 `NetworkChecker.checkServerAvailable()`（3s 探测服务器）兜底。
 - **离线提示条**: 社区离线提示条**只由 `NetworkMonitor.isConnected()` 控制**，严禁混入公开开关状态或服务器探测结果（探测在弱网下抖动会污染提示条显隐）。
 - **本地优先原则**: 任何保存（记账/预算/帖子）必须先在本地落库生效，网络失败仅标记待同步，绝不在网络判断处短路本地写入。
 
