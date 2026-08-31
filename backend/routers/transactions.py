@@ -45,8 +45,13 @@ async def sync_transactions(
     for t in payload.transactions:
         try:
             if t.localId:
+                # 幂等检查必须限定当前用户：local_id 全局唯一，若不按 user_id 过滤，
+                # 一旦客户端带错 token 把数据写入别的账号，本账号的记录会被永久跳过
                 exists = (await db.execute(
-                    select(Transaction).where(Transaction.local_id == t.localId)
+                    select(Transaction).where(
+                        Transaction.local_id == t.localId,
+                        Transaction.user_id == user.id,
+                    )
                 )).scalar_one_or_none()
                 if exists:
                     continue  # 已同步过，跳过

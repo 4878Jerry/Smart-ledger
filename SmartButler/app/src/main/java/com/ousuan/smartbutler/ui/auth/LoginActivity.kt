@@ -119,6 +119,14 @@ class LoginActivity : AppCompatActivity() {
             userRepository.login(username, password)
                 .onSuccess { user ->
                     Toast.makeText(this@LoginActivity, "欢迎回来，${user.nickname ?: user.username}", Toast.LENGTH_SHORT).show()
+                    if (userRepository.lastLoginOffline) {
+                        // 离线降级登录：无有效 token，录入的数据只能保存在本机，无法同步到服务器
+                        Toast.makeText(
+                            this@LoginActivity,
+                            "当前为离线模式，数据仅保存在本机；联网后请重新登录以同步到服务器",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                     goMain()
                 }
                 .onFailure { e ->

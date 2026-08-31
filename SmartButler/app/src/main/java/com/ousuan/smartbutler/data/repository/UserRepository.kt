@@ -43,6 +43,14 @@ class UserRepository(context: Context) {
      */
     var onLoginSuccess: ((User) -> Unit)? = null
 
+    /**
+     * 最近一次登录是否为「离线降级登录」（本地模拟账号，无有效 JWT token）。
+     * 离线登录录入的数据只能保存在本地，无法同步到服务器；
+     * UI 据此提示用户「联网后请重新登录以同步」，避免误以为已上传成功。
+     */
+    @Volatile
+    var lastLoginOffline: Boolean = false
+
     // ---------- 登录 / 注册 ----------
 
     /** 登录：优先服务器，失败降级本地模拟账号 */
@@ -58,6 +66,7 @@ class UserRepository(context: Context) {
             if (resp.code == 0 && resp.data?.token?.isNotEmpty() == true && resp.data.user != null) {
                 val user = resp.data.user.toLocalUser()
                 TokenManager.saveToken(resp.data.token)
+                lastLoginOffline = false
                 saveCurrentUser(user)
                 rememberLocalUser(user, password)
                 // 登录成功后自动拉取服务器数据（记录 + 帖子），实现重装恢复
@@ -96,6 +105,10 @@ class UserRepository(context: Context) {
             if (resp.code == 0 && resp.data != null) {
                 val user = resp.data.toLocalUser()
                 rememberLocalUser(user, password)
+                // 注册成功不自动登录（UI 跳转登录页）：清掉可能残留的旧账号 token，
+                // 避免后续 sync 用旧 token 把新账号数据串写到别的账号名下
+                TokenManager.clearToken()
+                lastLoginOffline = false
                 return Result.success(user)
             }
             return Result.failure(UserException(resp.msg ?: "注册失败"))
@@ -110,6 +123,7 @@ class UserRepository(context: Context) {
     /** 退出登录：清除 token 与当前登录用户（不删除账号） */
     fun logout() {
         TokenManager.clearToken()
+        lastLoginOffline = false
         prefs.edit()
             .remove(KEY_CURRENT_USER)
             .apply()
@@ -184,6 +198,12 @@ class UserRepository(context: Context) {
             return Result.failure(UserException("密码错误，请重试"))
         }
         saveCurrentUser(user)
+        // 离线降级登录：本机没有该账号的有效 JWT token。
+        // 必须清掉可能残留的旧账号 token —— 否则 sync 会带旧 token 请求，
+        // 服务器按旧 token 解析 user_id，把本次录入的数据串写到别的账号名下；
+        // 无 token 时 sync 被 401 拒绝、数据保留本地，联网重新在线登录后即可补传。
+        TokenManager.clearToken()
+        lastLoginOffline = true
         return Result.success(user)
     }
 
@@ -201,6 +221,9 @@ class UserRepository(context: Context) {
         users.add(user)
         saveUsers()
         saveCurrentUser(user)
+        // 离线注册的账号在服务器上不存在，无 token；清掉残留旧 token 防串号
+        TokenManager.clearToken()
+        lastLoginOffline = true
         return Result.success(user)
     }
 
